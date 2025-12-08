@@ -20,6 +20,9 @@ public:
 
 	static ScribusProxyStyle* instance();
 
+	QRect subControlRect(QStyle::ComplexControl cc, const QStyleOptionComplex *opt, QStyle::SubControl sc, const QWidget *widget = nullptr) const override;
+	void drawControl(QStyle::ControlElement el, const QStyleOption *opt, QPainter *painter, const QWidget *widget = nullptr) const override;
+
 protected:
 	bool eventFilter(QObject *object, QEvent *event) override;
 

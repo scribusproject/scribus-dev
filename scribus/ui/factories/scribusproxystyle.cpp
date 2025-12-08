@@ -18,6 +18,7 @@
 
 #include "prefsmanager.h"
 #include "scribus.h"
+#include "ui/widgets/buttongroup.h"
 
 // https://doc.qt.io/qt-6/qstyle.html#standardPalette
 QPalette createLightPalette()
@@ -62,6 +63,83 @@ ScribusProxyStyle::ScribusProxyStyle(const QString &key) : QProxyStyle(key) {}
 ScribusProxyStyle* ScribusProxyStyle::instance()
 {
 	return static_cast<ScribusProxyStyle*>(qApp->style());
+}
+
+QRect ScribusProxyStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex *opt, SubControl sc, const QWidget *widget) const
+{
+	QRect rect = QProxyStyle::subControlRect(cc, opt, sc, widget);
+
+	if (cc == CC_ToolButton)
+	{
+		const ScToolButton *tb = qobject_cast<const ScToolButton*>(widget);
+		if (!tb)
+			return rect;
+
+		if (const QStyleOptionToolButton *button = qstyleoption_cast<const QStyleOptionToolButton *>(opt))
+		{
+			switch (tb->position())
+			{
+			case ScToolButton::Left:
+				rect.adjust(0, 0, rect.width(), 0);
+				break;
+			case ScToolButton::Center:
+				rect.adjust(-rect.width() / 2, 0, rect.width() / 2, 0);
+				break;
+			case ScToolButton::Right:
+				rect.adjust(-rect.width(), 0, 0, 0);
+				break;
+			default:
+				// do nothing
+				break;
+			}
+
+			return visualRect(button->direction, button->rect, rect);
+		}
+	}
+
+	return rect;
+
+}
+
+void ScribusProxyStyle::drawControl(ControlElement el, const QStyleOption *opt, QPainter *painter, const QWidget *widget) const
+{
+	if (el == CE_ToolButtonLabel)
+	{
+		QStyleOptionToolButton styleOption = *static_cast<const QStyleOptionToolButton *>(opt);
+		const ScToolButton *tb = qobject_cast<const ScToolButton*>(widget);
+
+		if (!tb)
+			return QProxyStyle::drawControl(el, opt, painter, widget);
+
+		QRect rect = styleOption.rect;
+		int t = widget->rect().top() + 4;
+		int b = widget->rect().bottom() - 4;
+		int r = widget->rect().right();
+
+		switch (tb->position())
+		{
+		case ScToolButton::Right:
+			styleOption.rect.adjust(0, 0, rect.width() / 2, 0);
+			break;
+		case ScToolButton::Left:
+			styleOption.rect.adjust(-rect.width() / 2, 0, 0, 0);
+			painter->setPen(opt->palette.color(QPalette::Mid));
+			painter->drawLine(r, t, r, b);
+			break;
+		case ScToolButton::Center:
+			styleOption.rect.adjust(-rect.width() / 2, 0, rect.width() / 2, 0);
+			painter->setPen(opt->palette.color(QPalette::Mid));
+			painter->drawLine(r, t, r, b);
+			break;
+		default:
+			// do nothing
+			break;
+		}
+
+		return QProxyStyle::drawControl(el, &styleOption, painter, widget);
+	}
+
+	return QProxyStyle::drawControl(el, opt, painter, widget);
 }
 
 bool ScribusProxyStyle::eventFilter(QObject *object, QEvent *event)
