@@ -97,6 +97,7 @@ void ScribusProxyStyle::setBaseStyleName(const QString &styleName)
 
 void ScribusProxyStyle::setApplicationTheme(ApplicationTheme theme)
 {
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 8, 0))
 	blockRefresh = true;
 
 	// For Linux exception see bugreport: https://bugreports.qt.io/browse/QTBUG-132929
@@ -127,4 +128,5 @@ void ScribusProxyStyle::setApplicationTheme(ApplicationTheme theme)
 	}
 
 	blockRefresh = false;
+#endif
 }
