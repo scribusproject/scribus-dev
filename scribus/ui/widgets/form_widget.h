@@ -80,13 +80,14 @@ public:
 	void addWidget(QWidget* widget);
 
 protected:
-	void paintEvent(QPaintEvent *e) Q_DECL_OVERRIDE;
-	bool event(QEvent *e) Q_DECL_OVERRIDE;
+	void paintEvent(QPaintEvent *e) override;
+	bool event(QEvent *e) override;
 
 private:
 	LabelPosition m_position {LabelPosition::Bottom};
 	LabelPosition m_iconPosition {LabelPosition::Left};
 	int m_space {4};
+	int m_labelOffset {0};
 	QSize m_pixmapSize {QSize(16,16)};
 	QString m_label {"Label"};
 	QFont m_font;
@@ -100,7 +101,7 @@ private:
 
 	void calculateFrame();
 	void updateShortcut();
-	void labelSize(int &l, int &t, int &r, int &b, int &w, int &h) const;
+	void labelSize(int &l, int &t, int &r, int &b, int &w, int &h, int &offset) const;
 };
 
 

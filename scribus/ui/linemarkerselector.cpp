@@ -1,5 +1,6 @@
 #include "linemarkerselector.h"
 #include "ui/delegates/sclistitemdelegate.h"
+#include "scribusapp.h"
 
 /* ********************************************************************************* *
  *
@@ -7,22 +8,24 @@
  *
  * ********************************************************************************* */
 
-LineMarkerSelector::LineMarkerSelector(QWidget *parent) :
+LineMarkerSelector::LineMarkerSelector(QWidget* parent) :
 	QWidget(parent)
 {
 	setupUi(this);
 
-	listMarker->setIconSize(QSize(60,48));
-	listMarker->setGridSize(QSize(76,64));
+	listMarker->setIconSize(QSize(60, 48));
+	listMarker->setGridSize(QSize(76, 64));
 	listMarker->setSpacing(4);
-	listMarker->setItemDelegate(new ScListItemDelegate(QListWidget::IconMode, QSize(60,48)));
+	listMarker->setItemDelegate(new ScListItemDelegate(QListWidget::IconMode, QSize(60, 48)));
 
 	connect(listMarker, &QListWidget::itemSelectionChanged, this, [this]() {
 		emit markerChanged(marker());
-	});
+		});
 	connect(numberScale, &ScrSpinBox::valueChanged, this, [this]() {
 		emit scaleChanged(scale());
-	});
+		});
+
+	connect(ScQApp, SIGNAL(iconSetChanged()), this, SLOT(redrawIcons()));
 
 }
 
@@ -32,12 +35,22 @@ LineMarkerSelector::LineMarkerSelector(QWidget *parent) :
  *
  * ********************************************************************************* */
 
-void LineMarkerSelector::rebuildList(const QList<ArrowDesc> *arrowStyles)
+void LineMarkerSelector::clearList()
+{
+	m_arrowStyles = nullptr;
+	listMarker->clear();
+}
+
+void LineMarkerSelector::rebuildList(const QList<ArrowDesc>* arrowStyles)
 {
 	// ArrowStyles defined in: void PrefsManager::initArrowStyles()
 	int index = marker() == -1 ? 0 : marker();
 
+	m_arrowStyles = arrowStyles;
 	listMarker->clear();
+
+	if (!m_arrowStyles)
+		return;
 
 	qreal m_devicePixelRatio = qApp->devicePixelRatio();
 
@@ -53,19 +66,27 @@ void LineMarkerSelector::rebuildList(const QList<ArrowDesc> *arrowStyles)
 	for (int i = 0; i < arrowStyles->count(); ++i)
 	{
 		ico = renderPixmap(arrowStyles->at(i).points.copy(), width, height, scale);
-		addItem(ico, arrowStyles->at(i).name, i+1);
+		addItem(ico, arrowStyles->at(i).name, i + 1);
 	}
 
 	setMarker(index);
 }
 
-void LineMarkerSelector::addItem(QPixmap pixmap, const QString &label, int id)
+void LineMarkerSelector::addItem(QPixmap pixmap, const QString& label, int id)
 {
-	QListWidgetItem *item = new QListWidgetItem();
+	QListWidgetItem* item = new QListWidgetItem();
 	item->setIcon(pixmap);
 	item->setText("");
 	item->setData(arrow, id);
 	listMarker->addItem(item);
+}
+
+void LineMarkerSelector::redrawIcons()
+{
+	if (!m_arrowStyles || m_arrowStyles->empty())
+		return;
+
+	rebuildList(m_arrowStyles);
 }
 
 /* ********************************************************************************* *
@@ -84,10 +105,10 @@ void LineMarkerSelector::languageChange()
 	QString pctSuffix = tr(" %");
 	setScaleSuffix(pctSuffix);
 
-	numberScale->setToolTip( tr("Arrow head scale of line"));
+	numberScale->setToolTip(tr("Arrow head scale of line"));
 }
 
-double LineMarkerSelector::scale()
+double LineMarkerSelector::scale() const
 {
 	return numberScale->value();
 }
@@ -97,7 +118,7 @@ void LineMarkerSelector::setScale(double value)
 	numberScale->setValue(value);
 }
 
-int LineMarkerSelector::marker()
+int LineMarkerSelector::marker() const
 {
 	if (listMarker->currentItem() != nullptr)
 		return listMarker->currentItem()->data(arrow).toInt();
@@ -110,7 +131,7 @@ void LineMarkerSelector::setMarker(int id)
 	{
 		QListWidgetItem* item = listMarker->item(i);
 
-		if(item->data(arrow) == id)
+		if (item->data(arrow) == id)
 		{
 			listMarker->setCurrentItem(item);
 			break;
@@ -131,7 +152,7 @@ void LineMarkerSelector::setScaleSuffix(const QString suffix)
 
 QPixmap LineMarkerSelector::renderPixmap(FPointArray path, int width, int height, int scale)
 {
-	const QPalette& pal = this->palette();
+	const QPalette& pal = ScQApp->palette();
 	QColor textColor = pal.color(QPalette::Active, QPalette::Text);
 
 	int offsetX = 0, offsetY = 0, lineStart = 0, lineEnd = 0;
@@ -157,7 +178,7 @@ QPixmap LineMarkerSelector::renderPixmap(FPointArray path, int width, int height
 	QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
 	image.fill(0);
 
-	ScPainter *painter = new ScPainter(&image, width, height);
+	auto* painter = new ScPainter(&image, width, height);
 	painter->setStrokeMode(ScPainter::Solid); // solid line
 
 	// paint line
@@ -187,7 +208,7 @@ QPixmap LineMarkerSelector::renderPixmap(FPointArray path, int width, int height
 	return QPixmap::fromImage(image);
 }
 
-QIcon LineMarkerSelector::currentIcon()
+QIcon LineMarkerSelector::currentIcon() const
 {
 	QIcon ico;
 

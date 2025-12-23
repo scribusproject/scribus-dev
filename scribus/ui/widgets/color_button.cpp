@@ -6,6 +6,7 @@
 #include "util_gui.h"
 #include "popup_menu.h"
 #include "floatingwindow.h"
+#include "iconmanager.h"
 #include "scribusdoc.h"
 #include "sccolorengine.h"
 #include "manager/widget_manager.h"
@@ -26,18 +27,6 @@ ColorButton::ColorButton(QWidget *parent) : QToolButton(parent)
  * Members
  *
  * ********************************************************************************* */
-
-
-void ColorButton::setHasDot(bool enabled)
-{
-	m_hasDot = enabled;
-	update();
-}
-
-bool ColorButton::hasDot() const
-{
-	return m_hasDot;
-}
 
 QSize ColorButton::circleSize() const
 {
@@ -139,6 +128,44 @@ void ColorButton::setColor(QString colorName, double shade, double opacity)
 	c.Opacity = opacity;
 
 	setColorData(c);
+
+}
+
+void ColorButton::setColorData(const CPColorData &data)
+{
+	m_colorData = data;
+
+	if (!m_doc)
+		return;
+
+	m_hasDot = canShowDot();
+
+	if (m_infoType == InfoColorModel)
+	{
+		ScColor sColor(0, 0, 0);
+		IconManager &im = IconManager::instance();
+
+		if (m_doc->PageColors.contains(colorName()))
+			sColor = m_doc->PageColors.value(colorName());
+
+		switch (sColor.getColorModel())
+		{
+		case colorModel::colorModelCMYK:
+			m_dotIcon = im.loadIcon("color-cmyk");
+			break;
+		case colorModelRGB:
+			m_dotIcon = im.loadIcon("color-rgb");
+			break;
+		case colorModelLab:
+			m_dotIcon = im.loadIcon("color-lab");
+			break;
+		}
+
+		if (sColor.isSpotColor())
+			m_dotIcon = im.loadIcon("color-spot");
+	}
+	else
+		m_dotIcon = QIcon();
 
 }
 
@@ -330,6 +357,14 @@ void ColorButton::setModeByType(int type)
 			break;
 		}
 	}
+}
+
+bool ColorButton::canShowDot()
+{
+	if (m_infoType == InfoNone)
+		return false;
+	else
+		return m_mode == Mode::Solid && !(colorName() == CommonStrings::tr_NoneColor || colorName() == CommonStrings::None || colorName().isEmpty());
 }
 
 QColor ColorButton::colorFromName(QString colorName, double shade) const
@@ -560,12 +595,6 @@ void ColorButton::setIcon(const QIcon &icon)
 	updatePreview();
 }
 
-void ColorButton::setDotIcon(const QIcon &icon)
-{
-	m_dotIcon = icon;
-	update();
-}
-
 void ColorButton::setApplyColorOnIcon(bool onIcon)
 {
 	m_onIcon = onIcon;
@@ -767,7 +796,7 @@ void ColorButton::paintEvent(QPaintEvent *e)
 	drawCircularHandle(&painter, bDot.center(), bSize.width() - inset, brush(), isEnabled());
 
 	// Draw Foreground Dot
-	if (m_hasDot && dotIcon().isNull())
+	if (m_hasDot && m_dotIcon.isNull())
 	{
 		mask.clear();
 		QRectF fDot(0, 0, fSize.width(), fSize.height());
@@ -788,18 +817,18 @@ void ColorButton::paintEvent(QPaintEvent *e)
 	}
 
 	// Draw Icon
-	if (m_hasDot && !dotIcon().isNull())
+	if (m_hasDot && !m_dotIcon.isNull())
 	{
 		QIcon::Mode iMode = isEnabled() ? QIcon::Normal : QIcon::Disabled;
 
-		int w = 8;
-		int h = 8;
-		QPixmap pix = dotIcon().pixmap(QSize(w, h), iMode);
+		int w = 9;
+		int h = 9;
+		QPixmap pix = m_dotIcon.pixmap(QSize(w, h), iMode);
 		QRectF fDot(rect().right() - fSize.width() + 0.5, rect().bottom() - fSize.height() + 0.5, fSize.width(), fSize.height()); // bottom right corner
 		painter.setPen(QPen(palette().color(QPalette::WindowText)));
 		painter.setBrush(palette().color(QPalette::Base));
 		painter.drawEllipse(fDot.center(), fDot.width() / 2., fDot.height() / 2.);
-		painter.drawPixmap(fDot.center() - QPointF(w/2, h/2), pix);
+		painter.drawPixmap(fDot.center() - QPointF(w/2 + 0.5, h/2 + 0.5), pix);
 	}
 
 	painter.end();

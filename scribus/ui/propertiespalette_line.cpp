@@ -175,6 +175,10 @@ void PropertiesPalette_Line::unsetDoc()
 	comboLineStyle->setDoc(m_doc);
 	buttonLineColor->unsetDoc();
 	buttonLineMask->unsetDoc();
+
+	lineMarkerSelectorStart->clearList();
+	lineMarkerSelectorEnd->clearList();
+
 	updateLineStyles(nullptr);
 
 	setEnabled(false);
@@ -333,7 +337,6 @@ void PropertiesPalette_Line::setCurrentItem(PageItem *item)
 
 	showLineWidth(m_item->lineWidth());
 	showLineValues(m_item->lineStyle(), m_item->lineEnd(), m_item->lineJoin());
-
 }
 
 void PropertiesPalette_Line::updateArrowStyles()
@@ -344,7 +347,12 @@ void PropertiesPalette_Line::updateArrowStyles()
 void PropertiesPalette_Line::updateArrowStyles(ScribusDoc *doc)
 {
 	if (!doc)
+	{
+		lineMarkerSelectorStart->clearList();
+		lineMarkerSelectorEnd->clearList();
 		return;
+	}
+
 	lineMarkerSelectorStart->rebuildList(&doc->arrowStyles());
 	buttonMarkerStart->setIcon(lineMarkerSelectorStart->currentIcon());
 	lineMarkerSelectorEnd->rebuildList(&doc->arrowStyles());
@@ -859,7 +867,9 @@ void PropertiesPalette_Line::iconSetChange()
 	buttonCapSquare->setIcon(im.loadIcon("stroke-cap-square"));
 
 	buttonSwapMarker->setIcon(im.loadIcon("swap"));
-	buttonLineMask->setDotIcon(im.loadIcon("mask", 8));
+
+	lineMaskLabel->setPixmap(im.loadPixmap("mask"));
+	// lineColorLabel->setPixmap(im.loadPixmap("color-stroke"));
 
 	lineStyleLabel->setPixmap(im.loadPixmap("stroke-style"));
 	buttonLineStyleNew->setIcon(im.loadIcon("stroke-style-new"));
@@ -948,5 +958,4 @@ void PropertiesPalette_Line::toggleLabelVisibility(bool v)
 	lineMarkerLabel->setLabelVisibility(v);
 	lineMaskLabel->setLabelVisibility(v);
 	lineBlendmodeLabel->setLabelVisibility(v);
-	buttonLineMask->setHasDot(!v);
 }
