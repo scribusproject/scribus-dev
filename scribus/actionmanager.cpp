@@ -11,13 +11,13 @@ for which a new license (GPL+exception) is in place.
 ***************************************************************************/
 
 /***************************************************************************
-*                                                                         *
-*   mainWindow program is free software; you can redistribute it and/or modify  *
-*   it under the terms of the GNU General Public License as published by  *
-*   the Free Software Foundation; either version 2 of the License, or     *
-*   (at your option) any later version.                                   *
-*                                                                         *
-***************************************************************************/
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ ***************************************************************************/
 
 #include <array>
 
@@ -426,6 +426,8 @@ void ActionManager::initItemMenuActions()
 	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
 	name = "itemLockSize";
 	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
+	name = "itemLockAspectRatio";
+	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
 	name = "itemPrintingEnabled";
 	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
 	name = "itemFlipH";
@@ -434,6 +436,7 @@ void ActionManager::initItemMenuActions()
 	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
 	(*scrActions)["itemLock"]->setToggleAction(true, true);
 	(*scrActions)["itemLockSize"]->setToggleAction(true, true);
+	(*scrActions)["itemLockAspectRatio"]->setToggleAction(true, true);
 	(*scrActions)["itemPrintingEnabled"]->setToggleAction(true, true);
 	(*scrActions)["itemFlipH"]->setToggleAction(true, true);
 	(*scrActions)["itemFlipV"]->setToggleAction(true, true);
@@ -526,6 +529,18 @@ void ActionManager::initItemMenuActions()
 	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
 	name = "itemEditWeld";
 	scrActions->insert(name, new ScrAction("", defaultKey(name), mainWindow));
+
+
+	name = "itemTextTransformLowercase";
+	scrActions->insert(name, new ScrAction(ScrAction::DataInt, QString(), QString(), "", defaultKey(name), mainWindow, 1));
+	name = "itemTextTransformUppercase";
+	scrActions->insert(name, new ScrAction(ScrAction::DataInt, QString(), QString(), "", defaultKey(name), mainWindow, 2));
+	name = "itemTextTransformSentencecase";
+	scrActions->insert(name, new ScrAction(ScrAction::DataInt, QString(), QString(), "", defaultKey(name), mainWindow, 3));
+	name = "itemTextTransformCapitalize";
+	scrActions->insert(name, new ScrAction(ScrAction::DataInt, QString(), QString(), "", defaultKey(name), mainWindow, 4));
+	name = "itemTextTransformToggleCase";
+	scrActions->insert(name, new ScrAction(ScrAction::DataInt, QString(), QString(), "", defaultKey(name), mainWindow, 5));
 
 	connect( (*scrActions)["itemDuplicate"], SIGNAL(triggered()), mainWindow, SLOT(duplicateItem()) );
 	connect( (*scrActions)["itemMulDuplicate"], SIGNAL(triggered()), mainWindow, SLOT(duplicateItemMulti()) );
@@ -1246,6 +1261,7 @@ void ActionManager::disconnectNewDocActions()
 	(*scrActions)["itemAdjustImageToFrame"]->disconnect();
 	(*scrActions)["itemLock"]->disconnect();
 	(*scrActions)["itemLockSize"]->disconnect();
+	(*scrActions)["itemLockAspectRatio"]->disconnect();
 	(*scrActions)["itemPrintingEnabled"]->disconnect();
 	(*scrActions)["itemFlipH"]->disconnect();
 	(*scrActions)["itemFlipV"]->disconnect();
@@ -1263,6 +1279,12 @@ void ActionManager::disconnectNewDocActions()
 	(*scrActions)["itemLower"]->disconnect();
 	(*scrActions)["itemRaise"]->disconnect();
 	(*scrActions)["toolsUnlinkTextFrameAndCutText"]->disconnect();
+
+	(*scrActions)["itemTextTransformLowercase"]->disconnect(SIGNAL(triggeredData(int)));
+	(*scrActions)["itemTextTransformUppercase"]->disconnect(SIGNAL(triggeredData(int)));
+	(*scrActions)["itemTextTransformSentencecase"]->disconnect(SIGNAL(triggeredData(int)));
+	(*scrActions)["itemTextTransformCapitalize"]->disconnect(SIGNAL(triggeredData(int)));
+	(*scrActions)["itemTextTransformToggleCase"]->disconnect(SIGNAL(triggeredData(int)));
 }
 
 void ActionManager::connectNewDocActions(ScribusDoc *currDoc)
@@ -1271,6 +1293,7 @@ void ActionManager::connectNewDocActions(ScribusDoc *currDoc)
 		return;
 	connect( (*scrActions)["itemLock"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_ToggleLock()) );
 	connect( (*scrActions)["itemLockSize"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_ToggleSizeLock()));
+	connect( (*scrActions)["itemLockAspectRatio"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_ToggleAspectRatioLock()));
 	connect( (*scrActions)["itemPrintingEnabled"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_TogglePrintEnabled()));
 	connect( (*scrActions)["itemFlipH"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_FlipH()));
 	connect( (*scrActions)["itemFlipV"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_FlipV()));
@@ -1303,6 +1326,11 @@ void ActionManager::connectNewDocActions(ScribusDoc *currDoc)
 	connect( (*scrActions)["itemLower"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_LowerItem()) );
 	connect( (*scrActions)["itemRaise"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_RaiseItem()) );
 	connect( (*scrActions)["toolsUnlinkTextFrameAndCutText"], SIGNAL(triggered()), currDoc, SLOT(itemSelection_UnlinkTextFrameAndCutText()) );
+	connect( (*scrActions)["itemTextTransformLowercase"], SIGNAL(triggeredData(int)), currDoc, SLOT(itemSelection_SetItemTextCaseTransform(int)) );
+	connect( (*scrActions)["itemTextTransformUppercase"], SIGNAL(triggeredData(int)), currDoc, SLOT(itemSelection_SetItemTextCaseTransform(int)) );
+	connect( (*scrActions)["itemTextTransformSentencecase"], SIGNAL(triggeredData(int)), currDoc, SLOT(itemSelection_SetItemTextCaseTransform(int)) );
+	connect( (*scrActions)["itemTextTransformCapitalize"], SIGNAL(triggeredData(int)), currDoc, SLOT(itemSelection_SetItemTextCaseTransform(int)) );
+	connect( (*scrActions)["itemTextTransformToggleCase"], SIGNAL(triggeredData(int)), currDoc, SLOT(itemSelection_SetItemTextCaseTransform(int)) );
 }
 
 void ActionManager::disconnectNewViewActions()
@@ -1590,6 +1618,7 @@ void ActionManager::languageChange()
 	(*scrActions)["itemGroupAdjust"]->setTexts( tr("Adjust Group"));
 	(*scrActions)["itemLock"]->setTexts( tr("Is &Locked"));
 	(*scrActions)["itemLockSize"]->setTexts( tr("Si&ze is Locked"));
+	(*scrActions)["itemLockAspectRatio"]->setTexts( tr("&Aspect ratio is Locked"));
 	(*scrActions)["itemPrintingEnabled"]->setTexts( tr("&Printing Enabled"));
 	(*scrActions)["itemFlipH"]->setTexts( tr("&Flip Horizontally"));
 	(*scrActions)["itemFlipV"]->setTexts( tr("&Flip Vertically"));
@@ -1641,6 +1670,11 @@ void ActionManager::languageChange()
 	(*scrActions)["itemsUnWeld"]->setTexts( tr("Unweld Items"));
 	(*scrActions)["itemWeld"]->setTexts( tr("Weld Items"));
 	(*scrActions)["itemEditWeld"]->setTexts( tr("Edit Weld"));
+	(*scrActions)["itemTextTransformLowercase"]->setTexts( tr("lowercase"));
+	(*scrActions)["itemTextTransformUppercase"]->setTexts( tr("UPPERCASE"));
+	(*scrActions)["itemTextTransformSentencecase"]->setTexts( tr("Sentence case"));
+	(*scrActions)["itemTextTransformCapitalize"]->setTexts( tr("Capitalize"));
+	(*scrActions)["itemTextTransformToggleCase"]->setTexts( tr("tOGGLE cASE"));
 
 	//Insert Menu
 	(*scrActions)["insertFrame"]->setTexts( tr("&Frames..."));
@@ -2180,7 +2214,8 @@ void ActionManager::createDefaultMenus()
 		<< "itemGroupAdjust"
 		<< "itemLock" 
 		<< "itemLockSize" 
-		<< "itemImageIsVisible" 
+		<< "itemImageIsVisible"
+		<< "itemStyleSearch"
 		<< "itemUpdateImage"
 		<< "itemAdjustFrameHeightToText"
 		<< "itemAdjustFrameToImage" 
@@ -2215,7 +2250,12 @@ void ActionManager::createDefaultMenus()
 		<< "itemsUnWeld"
 		<< "itemWeld"
 		<< "itemEditWeld"
-		<< "toolsUnlinkTextFrameAndCutText";
+		<< "toolsUnlinkTextFrameAndCutText"
+		<< "itemTextTransformLowercase"
+		<< "itemTextTransformUppercase"
+		<< "itemTextTransformSentencecase"
+		<< "itemTextTransformCapitalize"
+		<< "itemTextTransformToggleCase";
 	
 	//Insert
 	++itmenu;
@@ -2414,6 +2454,7 @@ void ActionManager::createDefaultMenus()
 		<< "helpAboutScribus"
 		<< "helpAboutPlugins"
 		<< "helpAboutQt"
+		<< "helpActionSearch"
 		<< "helpTooltips"
 		<< "helpManual"
 		<< "helpOnlineWWW"

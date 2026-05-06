@@ -190,16 +190,16 @@ void SMLineStyleWidget::updateLineList()
 {
 	QString tmp, tmp2;
 	lineStyles->clear();
-	QPixmap * pm2;
+	QPixmap pm2;
 	double unitRatio = lineWidth->unitRatio();
 	int decimals = lineWidth->decimals();
-	for (MultiLine::iterator it = m_currentStyle.begin(); it != m_currentStyle.end(); ++it)
+	for (auto it = m_currentStyle.cbegin(); it != m_currentStyle.cend(); ++it)
 	{
 		pm2 = getWidePixmap(getColor(it->Color, it->Shade));
 		tmp2 = " "+ tmp.setNum(it->Width * unitRatio, 'f', decimals) + lineWidth->suffix() + " ";
 		if (it->Dash < 6)
 			tmp2 += CommonStrings::translatePenStyleName(static_cast<Qt::PenStyle>(it->Dash)) + " ";
-		lineStyles->addItem(new QListWidgetItem(*pm2, tmp2, lineStyles));
+		lineStyles->addItem(new QListWidgetItem(pm2, tmp2, lineStyles));
 	}
 }
 

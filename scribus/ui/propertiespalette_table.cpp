@@ -325,8 +325,8 @@ void PropertiesPalette_Table::updateBorderLineList()
 		QString text = QString(" %1%2 %3").arg(borderLine.width()).arg(borderLineWidth->suffix(), CommonStrings::translatePenStyleName(borderLine.style()));
 		if (borderLine.color() != CommonStrings::None)
 		{
-			QPixmap *icon = getWidePixmap(getColor(borderLine.color(), borderLine.shade()));
-			borderLineList->addItem(new QListWidgetItem(*icon, text, borderLineList));
+			QPixmap icon = getWidePixmap(getColor(borderLine.color(), borderLine.shade()));
+			borderLineList->addItem(new QListWidgetItem(icon, text, borderLineList));
 		}
 		else
 			borderLineList->addItem(new QListWidgetItem(text, borderLineList));
@@ -359,8 +359,8 @@ void PropertiesPalette_Table::updateBorderLineListItem()
 	QString text = QString(" %1%2 %3").arg(borderLineWidth->getValue()).arg(borderLineWidth->suffix(), CommonStrings::translatePenStyleName(static_cast<Qt::PenStyle>(borderLineStyle->currentIndex() + 1)));
 	if (borderLineColor->currentColor() != CommonStrings::None)
 	{
-		QPixmap *icon = getWidePixmap(getColor(borderLineColor->currentColor(), borderLineShade->value()));
-		item->setIcon(*icon);
+		QPixmap icon = getWidePixmap(getColor(borderLineColor->currentColor(), borderLineShade->value()));
+		item->setIcon(icon);
 	}
 	item->setText(text);
 }
@@ -413,7 +413,7 @@ QColor PropertiesPalette_Table::getColor(const QString& colorName, int shade) co
 	if (!m_doc)
 		return QColor();
 
-	return ScColorEngine::getDisplayColor(m_doc->PageColors[colorName], m_doc, shade);
+	return ScColorEngine::getDisplayColor(m_doc->PageColors.value(colorName), m_doc, shade);
 }
 
 void PropertiesPalette_Table::on_borderLineList_currentRowChanged(int row)
@@ -626,16 +626,21 @@ void PropertiesPalette_Table::updateBorders()
 
 	PageItem_Table* table = m_item->asTable();
 	TableSides selectedSides = sideSelector->selection();
-	if (m_doc->appMode != modeEditTable)
+
+	if (m_doc->appMode == modeEditTable)
 	{
-		table->setBorders(m_currentBorder, selectedSides);
+		// Edit mode: apply to selected cells. If no cells are selected,
+		// do nothing -- the user hasn't told us what to edit.
+		const QSet<TableCell>& selection = table->selectedCells();
+		if (!selection.isEmpty())
+			table->setCellBorders(selection, m_currentBorder, selectedSides);
 	}
 	else
 	{
-		QSet<TableCell> cells = table->selectedCells();
-		if (cells.isEmpty())
-			cells.insert(table->activeCell());
-		table->setCellBorders(cells, m_currentBorder, selectedSides);
+		// Normal mode: implicit whole-table selection. Apply to all cells
+		// and keep the table-level fallback in sync.
+		table->setBorders(m_currentBorder, selectedSides);
+		table->setCellBorders(table->cells(), m_currentBorder, selectedSides);
 	}
 	table->update();
 }

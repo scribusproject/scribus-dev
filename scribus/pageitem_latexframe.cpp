@@ -47,7 +47,7 @@ PageItem_LatexFrame::PageItem_LatexFrame(ScribusDoc *pa, double x, double y, dou
 	m_itemName = tr("Render") + QString::number(m_Doc->TotalItems);
 	setUName(m_itemName);
 	
-	if (PrefsManager::instance().latexConfigs().count() > 0)
+	if (!PrefsManager::instance().latexConfigs().isEmpty())
 		setConfigFile(PrefsManager::instance().latexConfigs()[0]);
 
 	latex = new QProcess();
@@ -310,6 +310,15 @@ void PageItem_LatexFrame::runApplication()
 			it.next();
 			arg.replace("$scribus_" + it.key() + "$", it.value());
 		}
+
+		QString docDir = ".";
+		if (doc()->hasName)
+		{
+			QFileInfo fi(doc()->documentFileName());
+			docDir = fi.absoluteDir().absolutePath();
+		}
+
+		arg.replace("$scribus_doc_dir$", docDir);
 
 		args[i] = arg;
 	}

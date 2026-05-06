@@ -673,7 +673,7 @@ void Scribus170Format::writeJavascripts(ScXmlStreamWriter & docu) const
 
 void Scribus170Format::writeBookmarks(ScXmlStreamWriter & docu) const
 {	
-	for (const auto& bookmark : m_Doc->BookMarks)
+	for (const auto& bookmark : std::as_const(m_Doc->BookMarks))
 	{
 		docu.writeEmptyElement("Bookmark");
 		docu.writeAttribute("Title", bookmark.Title);
@@ -1472,6 +1472,10 @@ void Scribus170Format::writeSections(ScXmlStreamWriter & docu) const
 			case Type_None:
 				docu.writeAttribute("Type", "Type_None");
 				break;
+			// Case of numeration formats not supported by 1.7.0 format
+			default:
+				docu.writeAttribute("Type", "Type_1_2_3");
+				break;
 		}
 		docu.writeAttribute("Start", (*it).sectionstartindex);
 		docu.writeAttribute("Reversed", (*it).reversed);
@@ -1621,6 +1625,10 @@ void  Scribus170Format::writeNotesStyles(ScXmlStreamWriter & docu, const QString
 				break;
 			case Type_None:
 				docu.writeAttribute("Type", "Type_None");
+				break;
+			// Case of numeration formats not supported by 1.7.0 format
+			default:
+				docu.writeAttribute("Type", "Type_1_2_3");
 				break;
 		}
 		docu.writeAttribute("Range", (int) noteStyle->range());
@@ -3013,7 +3021,7 @@ void Scribus170Format::SetItemProps(ScXmlStreamWriter& docu, PageItem* item, con
 	{
 		docu.writeAttribute("NUMDASH", item->DashValues.count());
 		QString dlp;
-		for (auto dashValue : item->DashValues)
+		for (auto dashValue : std::as_const(item->DashValues))
 			dlp += QString::number(dashValue) + " ";
 		docu.writeAttribute("DASHS", dlp);
 		docu.writeAttribute("DASHOFF", item->DashOffset);

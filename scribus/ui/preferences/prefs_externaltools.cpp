@@ -178,7 +178,7 @@ void Prefs_ExternalTools::rescanForTools()
 				/*Linux */ "kwrite" << "kate" << "gedit" << "gvim" <<
 				/*Windows */ "notepad" <<
 				/*Mac OS*/ "open";
-		for (const QString& editor : editors)
+		for (const QString& editor : std::as_const(editors))
 		{
 			if (fileInPath(editor))
 			{
@@ -195,7 +195,7 @@ void Prefs_ExternalTools::rescanForTools()
 		if (config != "100_latex.xml")
 			continue;
 
-		QString oldCommand = commands[config];
+		QString oldCommand = commands.value(config);
 		QStringList oldCommandArgs = QProcess::splitCommand(oldCommand);
 		if (!oldCommandArgs.isEmpty() && fileInPath(oldCommandArgs.at(0)))
 			continue;
@@ -273,7 +273,7 @@ void Prefs_ExternalTools::changeLatexPath()
 	QListWidgetItem *item = latexConfigsListWidget->currentItem();
 	QString config = item->data(Qt::UserRole).toString();
 	//TODO: Better dialog
-	QString oldCommand = commands[config];
+	QString oldCommand = commands.value(config);
 	if (oldCommand.isEmpty())
 		oldCommand = LatexConfigCache::instance()->parser(config)->executable();
 	bool ok = false;
@@ -302,7 +302,7 @@ void Prefs_ExternalTools::setConfigItemText(QListWidgetItem *item)
 {
 	QString config = item->data(Qt::UserRole).toString();
 	QString description = LatexConfigCache::instance()->parser(config)->description();
-	QString command = commands[config];
+	QString command = commands.value(config);
 	if (command.isEmpty())
 		item->setText(description);
 	else

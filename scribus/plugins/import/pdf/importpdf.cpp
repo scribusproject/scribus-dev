@@ -79,7 +79,11 @@ QImage PdfPlug::readThumbnail(const QString& fName)
 	bgColor[0] = 255;
 	bgColor[1] = 255;
 	bgColor[2] = 255;
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+	SplashOutputDev dev(splashModeXBGR8, 4, bgColor, true);
+#else
 	SplashOutputDev dev(splashModeXBGR8, 4, false, bgColor, true);
+#endif
 	dev.setVectorAntialias(true);
 	dev.setFreeTypeHinting(true, false);
 	dev.startDoc(&pdfDoc);
@@ -154,20 +158,17 @@ bool PdfPlug::importFile(const QString& fNameIn, const TransactionSettings& trSe
 	}
 	double docWidth = PrefsManager::instance().appPrefs.docSetupPrefs.pageWidth;
 	double docHeight = PrefsManager::instance().appPrefs.docSetupPrefs.pageHeight;
-	if (!m_interactive || (flags & LoadSavePlugin::lfInsertPage))
+	if (m_Doc && (!m_interactive || (flags & LoadSavePlugin::lfInsertPage)))
 	{
 		m_Doc->setPage(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false);
 		m_Doc->addPage(0);
 		m_Doc->view()->addPage(0, true);
 	}
-	else
+	else if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
 	{
-		if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
-		{
-			m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, 0, 0, 0, 0, 1, "Custom", true);
-			ScCore->primaryMainWindow()->HaveNewDoc();
-			ret = true;
-		}
+		m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, 0, 0, 0, 0, 1, "Custom", true);
+		ScCore->primaryMainWindow()->HaveNewDoc();
+		ret = true;
 	}
 
 	if (ret || !m_interactive)
@@ -195,7 +196,7 @@ bool PdfPlug::importFile(const QString& fNameIn, const TransactionSettings& trSe
 		QDir::setCurrent(CurDirP);
 		if ((m_elements.count() == 1) && (!(m_importerFlags & LoadSavePlugin::lfCreateDoc)))
 		{
-			PageItem *gr = m_elements[0];
+			PageItem *gr = m_elements.at(0);
 			if (gr->isGroup())
 				m_Doc->resizeGroupToContents(gr);
 		}
@@ -203,6 +204,11 @@ bool PdfPlug::importFile(const QString& fNameIn, const TransactionSettings& trSe
 		{
 			PageItem *gr = m_Doc->groupObjectsList(m_elements);
 			m_Doc->resizeGroupToContents(gr);
+		}
+		if (m_importerFlags & LoadSavePlugin::lfLockAspectRatio)
+		{
+			for (int i = 0; i < m_elements.count(); ++i)
+				m_elements.at(i)->setAspectRatioLocked(true);
 		}
 		m_Doc->DoDrawing = true;
 		m_Doc->scMW()->setScriptRunning(false);
@@ -219,10 +225,7 @@ bool PdfPlug::importFile(const QString& fNameIn, const TransactionSettings& trSe
 				if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 				{
 					m_Doc->m_Selection->delaySignalsOn();
-					for (int dre=0; dre < m_elements.count(); ++dre)
-					{
-						m_Doc->m_Selection->addItem(m_elements.at(dre), true);
-					}
+					m_Doc->m_Selection->addItems(m_elements);
 					m_Doc->m_Selection->delaySignalsOff();
 					m_Doc->m_Selection->setGroupRect();
 					if (m_Doc->view() != nullptr)
@@ -235,10 +238,7 @@ bool PdfPlug::importFile(const QString& fNameIn, const TransactionSettings& trSe
 				m_Doc->DraggedElem = nullptr;
 				m_Doc->DragElements.clear();
 				m_Doc->m_Selection->delaySignalsOn();
-				for (int dre = 0; dre < m_elements.count(); ++dre)
-				{
-					m_tmpSele->addItem(m_elements.at(dre), true);
-				}
+				m_tmpSele->addItems(m_elements);
 				m_tmpSele->setGroupRect();
 				ScElemMimeData* md = ScriXmlDoc::writeToMimeData(m_Doc, m_tmpSele);
 				m_Doc->itemSelection_DeleteItem(m_tmpSele);
@@ -784,10 +784,8 @@ bool PdfPlug::convert(const QString& fn)
 
 	if (m_elements.isEmpty())
 	{
-		for (int i = 0; i < m_importedColors.count(); i++)
-		{
-			m_Doc->PageColors.remove(m_importedColors[i]);
-		}
+		for (const auto& importedColor : std::as_const(m_importedColors))
+			m_Doc->PageColors.remove(importedColor);
 	}
 
 	if (m_progressDialog)
@@ -809,11 +807,15 @@ QImage PdfPlug::readPreview(int pgNum, int width, int height, int box)
 	bgColor[0] = 255;
 	bgColor[1] = 255;
 	bgColor[2] = 255;
-	SplashOutputDev *dev = new SplashOutputDev(splashModeXBGR8, 4, false, bgColor, true);
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+	auto dev = std::make_unique<SplashOutputDev>(splashModeXBGR8, 4, bgColor, true);
+#else
+	auto dev = std::make_unique<SplashOutputDev>(splashModeXBGR8, 4, false, bgColor, true);
+#endif
 	dev->setVectorAntialias(true);
 	dev->setFreeTypeHinting(true, false);
 	dev->startDoc(m_pdfDoc);
-	m_pdfDoc->displayPage(dev, pgNum, hDPI, vDPI, 0, true, false, false);
+	m_pdfDoc->displayPage(dev.get(), pgNum, hDPI, vDPI, 0, true, false, false);
 	SplashBitmap *bitmap = dev->getBitmap();
 	int bw = bitmap->getWidth();
 	int bh = bitmap->getHeight();
@@ -851,7 +853,6 @@ QImage PdfPlug::readPreview(int pgNum, int width, int height, int box)
 		pp.drawRect(cRect);
 		pp.end();
 	}
-	delete dev;
 	return image;
 }
 
@@ -878,7 +879,7 @@ QString PdfPlug::UnicodeParsedString(const GooString *s1) const
 	if (!s1 || s1->empty())
 		return QString();
 	bool isUnicode;
-	int i;
+	size_t i;
 	Unicode u;
 	QString result;
 	if ((s1->getChar(0) & 0xff) == 0xfe && (s1->size() > 1 && (s1->getChar(1) & 0xff) == 0xff))

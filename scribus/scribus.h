@@ -154,8 +154,10 @@ public:
 	inline bool scriptIsRunning(void) const { return (m_ScriptRunning > 0); }
 	inline void setScriptRunning(bool value) { m_ScriptRunning += (value ? 1 : -1); }
 
-	ScribusDoc* doFileNew(double width, double height, double topMargin, double leftMargin, double rightMargin, double bottomMargin, double columnDistance, double columnCount, bool autoTextFrames, int pageArrangement, int unitIndex, int firstPageLocation, int orientation, int firstPageNumber, const QString& defaultPageSize, bool requiresGUI, int pageCount = 1, bool showView = true, int marginPreset = 0);
-	ScribusDoc* newDoc(double width, double height, double topMargin, double leftMargin, double rightMargin, double bottomMargin, double columnDistance, double columnCount, bool autoTextFrames, int pageArrangement, int unitIndex, int firstPageLocation, int orientation, int firstPageNumber, const QString& defaultPageSize, bool requiresGUI, int pageCount = 1, bool showView = true, int marginPreset = 0);
+	ScribusDoc* doFileNew(double width, double height, double topMargin, double leftMargin, double rightMargin,
+		double bottomMargin, double columnDistance, double columnCount, bool autoTextFrames, int pageArrangement,
+		int unitIndex, int firstPageLocation, int orientation, int firstPageNumber, const QString& defaultPageSize,
+		bool requiresGUI, int pageCount = 1, bool showView = true, int marginPreset = 0, int bindingDirection = 0);
 	bool DoFileSave(const QString& fileName, QString* savedFileName = nullptr, uint formatID = FORMATID_CURRENTEXPORT);
 
 	void changeEvent(QEvent *e) override;
@@ -183,6 +185,7 @@ public:
 	void RestoreBookMarks();
 	QStringList  scrapbookNames() const;
 	void updateLayerMenu();
+	void updateZoomSuffix();
 	void emergencySave();
 	QStringList findRecoverableFile();
 	bool recoverFile(const QStringList& foundFiles);
@@ -291,6 +294,13 @@ public:
 	ActionManager* actionManager {nullptr};
 	QStringList m_recentDocsList;
 	QStringList patternsDependingOnThis;
+
+	/** \brief Temporary parameter storage for plugin import pipelines (cleared after use) */
+	QMap<QString, QString> pluginEditParams;
+	/** \brief Item being re-edited by a plugin dialog; cleared after use */
+	PageItem* pluginEditItem {nullptr};
+	/** \brief When true, plugin should regenerate silently without showing UI */
+	bool pluginEditSilent {false};
 
 public slots:
 	void iconSetChange();
@@ -661,7 +671,7 @@ private:
 
 	StyleManager *m_styleManager {nullptr};
 	UndoManager *m_undoManager {nullptr};
-	DocumentLogManager *m_documentLogManager {nullptr};
+	DocumentLogManager& m_documentLogManager;
 	PrefsManager& m_prefsManager;
 	WidgetManager &m_widgetManager;
 	FormatsManager *m_formatsManager {nullptr};	

@@ -48,8 +48,8 @@ public:
 	\param showProgress if progress must be displayed
 	\retval EPSPlug plugin
 	*/
-	PagesPlug( ScribusDoc* doc, int flags );
-	~PagesPlug();
+	PagesPlug(ScribusDoc* doc, int flags);
+	~PagesPlug() override;
 
 	/*!
 	\author Franz Schmid
@@ -61,7 +61,7 @@ public:
 	\param showProgress if progress must be displayed
 	\retval bool true if import was ok
 	 */
-	bool import(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
+	bool importFile(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
 	QImage readThumbnail(const QString& fn);
 
 private:
@@ -165,7 +165,7 @@ private:
 	PageItem *parseObjReference(QDomElement &draw);
 	void applyParagraphAttrs(ParagraphStyle &newStyle, CharStyle &tmpCStyle, const QString& pAttrs);
 	void applyCharAttrs(CharStyle &tmpCStyle, const QString& pAttrs);
-	void finishItem(PageItem* item, ObjState &obState);
+	void finishItem(PageItem* item, const ObjState &obState);
 
 	PageItem* addClip(PageItem* retObj, ObjState& obState);
 

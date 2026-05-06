@@ -26,10 +26,6 @@ for which a new license (GPL+exception) is in place.
 #include <QByteArray>
 #include <QDebug>
 
-ColorSetManager::ColorSetManager() = default;
-
-ColorSetManager::~ColorSetManager() = default;
-
 void ColorSetManager::initialiseDefaultPrefs(struct ApplicationPrefs& appPrefs)
 {
 	QString defaultSwatch = ScPaths::instance().shareDir() + "swatches/" + "Scribus_Basic.xml";
@@ -71,11 +67,17 @@ void ColorSetManager::initialiseDefaultPrefs(struct ApplicationPrefs& appPrefs)
 			while (!node.isNull())
 			{
 				QDomElement pg = node.toElement();
-				if (pg.tagName() == "COLOR" && pg.attribute("NAME") != CommonStrings::None)
+				if ((pg.tagName() == "COLOR" && pg.attribute("NAME") != CommonStrings::None) ||
+					(pg.tagName() == "Color" && pg.attribute("Name") != CommonStrings::None)
+					)
 				{
-					if (pg.hasAttribute("SPACE"))
+					if (pg.hasAttribute("SPACE") || pg.hasAttribute("Space"))
 					{
-						QString space = pg.attribute("SPACE");
+						QString space;
+						if (pg.hasAttribute("SPACE"))
+							space = pg.attribute("SPACE");
+						else
+							space = pg.attribute("Space");
 						if (space == "CMYK")
 						{
 							double c = pg.attribute("C", "0").toDouble() / 100.0;
@@ -149,7 +151,7 @@ void ColorSetManager::findPaletteLocations()
 	QStringList locations = ScPaths::systemCreatePalettesDirs();
 	locations << ScPaths::instance().shareDir()+"swatches/";
 	locations << ScPaths::dirsFromEnvVar("XDG_DATA_HOME", "scribus/swatches/");
-	for (const auto& loc : locations)
+	for (const auto& loc : std::as_const(locations))
 	{
 		QFileInfo paletteDir(loc);
 		if (paletteDir.exists())
@@ -159,7 +161,7 @@ void ColorSetManager::findPaletteLocations()
 		}
 	}
 	QStringList xdgSysLocations = ScPaths::dirsFromEnvVar("XDG_DATA_DIRS", "scribus/swatches/");
-	for (const auto& loc : xdgSysLocations)
+	for (const auto& loc : std::as_const(xdgSysLocations))
 	{
 		QFile paletteDir(loc);
 		if (paletteDir.exists())
@@ -231,7 +233,7 @@ void ColorSetManager::searchDir(const QString& path, QMap<QString, QString> &pLi
 void ColorSetManager::findPalettes(QTreeWidgetItem* parent)
 {
 	palettes.clear();
-	for (const auto& loc : paletteLocations)
+	for (const auto& loc : std::as_const(paletteLocations))
 		searchDir(loc, palettes, parent);
 }
 
@@ -301,7 +303,7 @@ bool ColorSetManager::checkPaletteFormat(const QString& paletteFileName) const
 #endif
 	f.close();
 	QDomElement elem = docu.documentElement();
-	return elem.tagName() == "SCRIBUSCOLORS";
+	return (elem.tagName() == "SCRIBUSCOLORS" || elem.tagName() == "ScribusColors");
 }
 
 bool ColorSetManager::loadPalette(const QString& paletteFileName, ScribusDoc *doc, ColorList &colors, QHash<QString,VGradient> &gradients, QHash<QString, ScPattern> &patterns, bool merge)

@@ -211,8 +211,7 @@ endif()
 #>>LibXML2
 
 #<<JPEG XL
-set(JXL_DIR ${CMAKE_MODULE_PATH})
-#find_package(JXL)
+find_package(JXL)
 if(JXL_FOUND)
 	set(HAVE_JXL ON)
 	message("JPEG XL Library Found OK")
@@ -316,6 +315,13 @@ pkg_check_modules(HARFBUZZ_SUBSET harfbuzz-subset>=2.4.0)
 if (HARFBUZZ_SUBSET_FOUND)
 	message("Harfbuzz subset library Found OK")
 	set (HAVE_HARFBUZZ_SUBSET ON)
+endif()
+
+# OpenType subsetting support
+pkg_check_modules(HARFBUZZ_VECTOR harfbuzz-vector>=14.0)
+if (HARFBUZZ_VECTOR_FOUND)
+	message("Harfbuzz vector library Found OK")
+	set (HAVE_HARFBUZZ_VECTOR ON)
 endif()
 
 #if(WANT_QTADS)

@@ -295,6 +295,7 @@ PageItem::PageItem(const PageItem & other)
 	m_ImageIsFlippedV(other.m_ImageIsFlippedV),
 	m_Locked(other.m_Locked),
 	m_SizeLocked(other.m_SizeLocked),
+	m_aspectRatioLocked(other.m_aspectRatioLocked),
 	m_SizeHLocked(other.m_SizeHLocked),
 	m_SizeVLocked(other.m_SizeVLocked),
 	m_textFlowMode(other.m_textFlowMode),
@@ -4422,6 +4423,26 @@ void PageItem::setSizeLocked(bool isLocked)
 		toggleSizeLock();
 }
 
+void PageItem::toggleAspectRatioLock()
+{
+	if (UndoManager::undoEnabled())
+	{
+		SimpleState *ss;
+		if (m_aspectRatioLocked)
+			ss = new SimpleState(Um::AspectRatioUnLock, nullptr, Um::IUnLock);
+		else
+			ss = new SimpleState(Um::AspectRatioLock, nullptr, Um::ILock);
+		ss->set("ASPECTRATIO_LOCK");
+		undoManager->action(this, ss);
+	}
+	m_aspectRatioLocked = !m_aspectRatioLocked;
+}
+
+void PageItem::setAspectRatioLocked(bool isAspectLocked)
+{
+	if (isAspectLocked != m_aspectRatioLocked)
+		toggleAspectRatioLock();
+}
 
 void PageItem::setPrintEnabled(bool toPrint)
 {
@@ -4970,6 +4991,11 @@ void PageItem::restore(UndoState *state, bool isUndo)
 			select();
 			m_Doc->itemSelection_ToggleSizeLock();
 		}
+		else if (ss->contains("ASPECTRATIO_LOCK"))
+		{
+			select();
+			m_Doc->itemSelection_ToggleAspectRatioLock();
+		}
 		else if (ss->contains("PRINT_ENABLED"))
 		{
 			select();
@@ -5093,6 +5119,8 @@ void PageItem::restore(UndoState *state, bool isUndo)
 			restoreSoftShadowErasedByObject(ss, isUndo);
 		else if (ss->contains("SOFT_SHADOW_OBJTRANS"))
 			restoreSoftShadowHasObjectTransparency(ss, isUndo);
+		else if (ss->contains("CASE_TRANSFORM"))
+			restoreCaseTransform(ss, isUndo);
 	}
 
 	if (!OnMasterPage.isEmpty())
@@ -6999,6 +7027,23 @@ void PageItem::restoreCharStyle(SimpleState *ss, bool isUndo)
 		itemText.applyCharStyle(start,length, is->getNewState());
 }
 
+void PageItem::restoreCaseTransform(SimpleState* state, bool isUndo)
+{
+	auto is = dynamic_cast<ScItemState<QVector<std::tuple<int, QChar, QChar>>>*>(state);
+	const QVector<std::tuple<int, QChar, QChar>> &changes = is->getItem();
+
+	if (isUndo)
+	{
+		for (const auto &change : changes)
+			itemText.replaceChar(std::get<0>(change), std::get<1>(change));
+	}
+	else
+	{
+		for (const auto &change : changes)
+			itemText.replaceChar(std::get<0>(change), std::get<2>(change));
+	}
+}
+
 void PageItem::restoreSetCharStyle(SimpleState *ss, bool isUndo)
 {
 	const auto *is = dynamic_cast<ScOldNewState<CharStyle>*>(ss);
@@ -7466,7 +7511,7 @@ void PageItem::restoreImageScaleMode(SimpleState *state, bool isUndo)
 			double ox = state->getDouble("OLD_IMAGEXOFFSET");
 			double oy = state->getDouble("OLD_IMAGEYOFFSET");
 			Selection tempSelection(this, false);
-			tempSelection.addItem(this, true);
+			tempSelection.addItem(this);
 			m_Doc->itemSelection_SetImageScale(oscx, oscy, &tempSelection);
 			m_Doc->itemSelection_SetImageOffset(ox, oy, &tempSelection);
 		}
@@ -7498,7 +7543,7 @@ void PageItem::restoreImageScaleChange(SimpleState *state, bool isUndo)
 	double  scx = state->getDouble("NEW_IMAGEXSCALE");
 	double  scy = state->getDouble("NEW_IMAGEYSCALE");
 	Selection tempSelection(this, false);
-	tempSelection.addItem(this, true);
+	tempSelection.addItem(this);
 	if (!isUndo)
 		m_Doc->itemSelection_SetImageScale(scx, scy, &tempSelection);
 	else
@@ -7512,7 +7557,7 @@ void PageItem::restoreImageOffsetChange(SimpleState *state, bool isUndo)
 	double  x = state->getDouble("NEW_IMAGEXOFFSET");
 	double  y = state->getDouble("NEW_IMAGEYOFFSET");
 	Selection tempSelection(this, false);
-	tempSelection.addItem(this, true);
+	tempSelection.addItem(this);
 	if (!isUndo)
 		m_Doc->itemSelection_SetImageOffset(x, y, &tempSelection);
 	else
@@ -7894,7 +7939,7 @@ void PageItem::restoreGetImage(UndoState *state, bool isUndo)
 	if (fn.isEmpty())
 	{
 		Selection tempSelection(this, false);
-		tempSelection.addItem(this, true);
+		tempSelection.addItem(this);
 		m_Doc->itemSelection_ClearItem(&tempSelection);
 		if (isUndo)
 		{
@@ -7981,7 +8026,7 @@ void PageItem::select()
 {
 	m_Doc->view()->deselectItems(false);
 	//CB #2969 add this true parm to addItem so we don't connectToGUI, the rest of view->SelectItem isn't needed anyway
-	m_Doc->m_Selection->addItem(this, true);
+	m_Doc->m_Selection->addItem(this);
 }
 
 ObjAttrVector* PageItem::getObjectAttributes()

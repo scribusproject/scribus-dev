@@ -197,7 +197,7 @@ QString SMLineStyle::newStyle(const QString &fromStyle)
 {
 	Q_ASSERT(m_tmpLines.contains(fromStyle));
 
-	MultiLine ml(m_tmpLines[fromStyle]);
+	MultiLine ml(m_tmpLines.value(fromStyle));
 	QString name = getUniqueName(fromStyle);
 	m_tmpLines[name] = ml;
 	return name;
@@ -275,7 +275,7 @@ void SMLineStyle::apply()
 				ite->NamedLStyle = replacement[ite->NamedLStyle];
 		}
 	}
-	for (auto it = m_doc->FrameItems.begin(); it != m_doc->FrameItems.end(); ++it)
+	for (auto it = m_doc->FrameItems.cbegin(); it != m_doc->FrameItems.cend(); ++it)
 	{
 		ite = it.value();
 		if (!ite->NamedLStyle.isEmpty())
@@ -333,7 +333,7 @@ void SMLineStyle::setShortcut(const QString &shortcut)
 	if (m_selection.count() != 1)
 		return;
 
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 		(*it)->shortcut = shortcut;
 
 	if (!m_selectionIsDirty)
@@ -437,7 +437,7 @@ void SMLineStyle::slotLineStyle(int i)
 	if (m_currentLine < 0)
 		return;
 
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 	{
 		MultiLine *tmp = it.value();
 		(*tmp)[m_currentLine].Dash = i + 1;
@@ -469,7 +469,7 @@ void SMLineStyle::slotSetEnd(int i)
 			break;
 	}
 
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 	{
 		MultiLine *tmp = it.value();
 		(*tmp)[m_currentLine].LineEnd = static_cast<int>(c);
@@ -505,7 +505,7 @@ void SMLineStyle::slotSetJoin(int i)
 			break;
 	}
 
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 	{
 		MultiLine *tmp = it.value();
 		(*tmp)[m_currentLine].LineJoin = static_cast<int>(c);
@@ -523,7 +523,7 @@ void SMLineStyle::slotSetJoin(int i)
 
 void SMLineStyle::slotColor(const QString &s)
 {
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 	{
 		MultiLine *tmp = it.value();
 		(*tmp)[m_currentLine].Color = s;
@@ -541,7 +541,7 @@ void SMLineStyle::slotColor(const QString &s)
 
 void SMLineStyle::slotShade(int i)
 {
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 	{
 		MultiLine *tmp = it.value();
 		(*tmp)[m_currentLine].Shade = i;
@@ -561,7 +561,7 @@ void SMLineStyle::slotLineWidth()
 {
 	double unitRatio = m_widget->lineWidth->unitRatio();
 
-	for (auto it = m_selection.begin(); it != m_selection.end(); ++it)
+	for (auto it = m_selection.cbegin(); it != m_selection.cend(); ++it)
 	{
 		MultiLine *tmp = it.value();
 		(*tmp)[m_currentLine].Width = m_widget->lineWidth->value() / unitRatio;
@@ -619,7 +619,7 @@ void SMLineStyle::slotAddLine()
 
 void SMLineStyle::rebuildList()
 {
-	QPixmap * pm2;
+	QPixmap pm2;
 	QString tmp, tmp2;
 	
 	int decimals = m_widget->lineWidth->decimals();
@@ -635,7 +635,7 @@ void SMLineStyle::rebuildList()
 		tmp2 = " "+ tmp.setNum(it->Width * unitRatio, 'f', decimals) + unitSuffix + " ";
 		if (it->Dash < 6)
 			tmp2 += CommonStrings::translatePenStyleName(static_cast<Qt::PenStyle>(it->Dash)) + " ";
-		m_widget->lineStyles->addItem(new QListWidgetItem(*pm2, tmp2, m_widget->lineStyles));
+		m_widget->lineStyles->addItem(new QListWidgetItem(pm2, tmp2, m_widget->lineStyles));
 	}
 }
 
@@ -687,19 +687,19 @@ void SMLineStyle::updateSList()
 	double  unitRatio = m_widget->lineWidth->unitRatio();
 	QString unitSuffix = m_widget->lineWidth->suffix();
 	
-	const QPixmap* pm = getWidePixmap(calcFarbe(singleLine.Color, singleLine.Shade));
+	const QPixmap pm = getWidePixmap(calcFarbe(singleLine.Color, singleLine.Shade));
 	QString tmp = " " + QString::number(singleLine.Width * unitRatio, 'f', decimals) + unitSuffix + " ";
 	if (singleLine.Dash < 6)
 		tmp += CommonStrings::translatePenStyleName(static_cast<Qt::PenStyle>(singleLine.Dash)) + " ";
 	if (m_widget->lineStyles->count() == 1)  // to avoid Bug in Qt-3.1.2
 	{
 		m_widget->lineStyles->clear();
-		m_widget->lineStyles->addItem(new QListWidgetItem(*pm, tmp, m_widget->lineStyles));
+		m_widget->lineStyles->addItem(new QListWidgetItem(pm, tmp, m_widget->lineStyles));
 	}
 	else
 	{
 		QListWidgetItem *lwItem = m_widget->lineStyles->item(m_currentLine);
-		lwItem->setIcon(*pm);
+		lwItem->setIcon(pm);
 		lwItem->setText(tmp);
 	}
 }

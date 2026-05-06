@@ -17,10 +17,8 @@ for which a new license (GPL+exception) is in place.
 
 class  ScribusDoc;
 
-#ifndef NLS_CONFORMANCE
 int SCRIBUS_API findParagraphStyle(ScribusDoc* doc, const ParagraphStyle& parStyle);
 int SCRIBUS_API findParagraphStyle(ScribusDoc* doc, const QString &name);
-#endif
 
 bool SCRIBUS_API localeAwareLessThan(const QString& s1, const QString& s2);
 
@@ -32,5 +30,9 @@ QString SCRIBUS_API saxedText(StoryText* story);
 
 QString SCRIBUS_API stringToUnicode(const QString &text);
 QString SCRIBUS_API unicodeToString(const QString &text);
+
+void SCRIBUS_API toSentenceCase(StoryText &story, int start, int length);
+void SCRIBUS_API capitalize(StoryText &story, int start, int length);
+void SCRIBUS_API toToggleCase(StoryText &story, int start, int length);
 
 #endif

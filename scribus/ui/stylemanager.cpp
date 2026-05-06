@@ -68,6 +68,7 @@ StyleManager::StyleManager(QWidget *parent, const char *name)
 	connect(resetButton, SIGNAL(clicked()), this, SLOT(slotClean()));
 	connect(applyButton, SIGNAL(clicked()), this, SLOT(slotApply()));
 	connect(deleteButton, SIGNAL(clicked()), this, SLOT(slotDelete()));
+	connect(deleteUnusedButton, SIGNAL(clicked()), this, SLOT(slotDeleteUnused()));
 	connect(cloneButton, SIGNAL(clicked()), this, SLOT(slotClone()));
 	connect(newButton, SIGNAL(clicked()), this, SLOT(slotNew()));
 	connect(styleView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(slotRightClick(QPoint)));
@@ -107,6 +108,7 @@ void StyleManager::languageChange()
 	importButton->setToolTip( tr("Import styles from another document"));
 	cloneButton->setToolTip(  tr("Clone selected style"));
 	deleteButton->setToolTip( tr("Delete selected styles"));
+	deleteUnusedButton->setToolTip( tr("Find and remove all styles not used by any object in the document"));
 
 /***********************************/
 /*      End Tooltips               */
@@ -184,7 +186,7 @@ ItemType* StyleManager::item()
 {
 	for (int i = 0; i < m_items.count(); ++i)
 	{
-		StyleItem* item = m_items[i];
+		StyleItem* item = m_items.at(i);
 		ItemType*  typedItem = qobject_cast<ItemType*>(item);
 		if (typedItem)
 			return typedItem;
@@ -249,6 +251,7 @@ void StyleManager::setDoc(ScribusDoc *doc)
 	cloneButton->setEnabled(hasDoc);
 	importButton->setEnabled(hasDoc);
 	deleteButton->setEnabled(hasDoc);
+	deleteUnusedButton->setEnabled(hasDoc);
 	m_rightClickPopup->setEnabled(hasDoc);
 	m_newPopup->setEnabled(hasDoc);
 	if (m_doc && (m_doc != oldDoc) && this->isVisible())
@@ -272,7 +275,7 @@ void StyleManager::setDoc(ScribusDoc *doc)
 	styleView->resizeColumnToContents(0);
 }
 
-void StyleManager::updateColorList()
+void StyleManager::refreshLists()
 {
 	for (int i = 0; i < m_items.count(); ++i)
 	{
@@ -319,6 +322,27 @@ void StyleManager::showAsEditLineStyle(const QString &name)
 
 	// 4 = top level id of line style in viewStyles list
 	editStyleByName(4, name);
+}
+
+void StyleManager::reloadStyles()
+{
+	if (!m_doc)
+		return;
+
+	styleView->clear();
+	if (m_selectedStyleAction)
+	{
+		m_rightClickPopup->removeAction(m_selectedStyleAction);
+		m_selectedStyleAction = nullptr;
+	}
+	m_styleActions.clear();
+
+	for (int i = 0; i < m_items.count(); ++i)
+	{
+		m_items.at(i)->setCurrentDoc(m_doc);
+		addNewType(m_items.at(i));
+	}
+	styleView->resizeColumnToContents(0);
 }
 
 void StyleManager::showAsEditParagraphStyle(const QString &name)
@@ -407,6 +431,102 @@ void StyleManager::slotDelete()
 		return;
 
 	m_item->deleteStyles(dia.items());
+	applyButton->setEnabled(true);
+	resetButton->setEnabled(true);
+	reloadStyleView(false);
+	slotOk();
+}
+
+void StyleManager::slotDeleteUnused()
+{
+	if (!m_doc)
+		return;
+
+	// Scan page items to find styles referenced by content
+	ResourceCollection usedResources;
+	m_doc->getUsedStylesFromItems(usedResources);
+
+	// Enter edit mode so deleteStyles() works on temp copies
+	if (!m_isEditMode)
+		slotOk();
+
+	int totalUnused = 0;
+	QStringList unusedSummary;
+
+	struct ItemDeletion
+	{
+		StyleItem* item;
+		QList<RemoveItem> removeList;
+	};
+	QList<ItemDeletion> deletions;
+
+	for (int i = 0; i < m_items.count(); ++i)
+	{
+		StyleItem* styleitem = m_items.at(i);
+
+		// Match StyleItem subclass to the right ResourceCollection map
+		const QMap<QString, QString>* usedMap = nullptr;
+
+		if (qobject_cast<SMParagraphStyle*>(styleitem))
+			usedMap = &usedResources.styles();
+		else if (qobject_cast<SMCharacterStyle*>(styleitem))
+			usedMap = &usedResources.charStyles();
+		else if (qobject_cast<SMLineStyle*>(styleitem))
+			usedMap = &usedResources.lineStyles();
+		else if (qobject_cast<SMTableStyle*>(styleitem))
+			usedMap = &usedResources.tableStyles();
+		else if (qobject_cast<SMCellStyle*>(styleitem))
+			usedMap = &usedResources.cellStyles();
+		else
+			continue;
+
+		QList<StyleName> allStyles = styleitem->styles(false);
+		QList<RemoveItem> removeList;
+
+		for (int j = 0; j < allStyles.count(); ++j)
+		{
+			const QString& styleName = allStyles[j].first;
+
+			if (styleitem->isDefaultStyle(styleName))
+				continue;
+
+			if (!usedMap->contains(styleName))
+			{
+				removeList.append(RemoveItem(styleName, QString()));
+				unusedSummary << QString("  %1: %2").arg(styleitem->typeName(), styleName);
+			}
+		}
+
+		if (!removeList.isEmpty())
+		{
+			deletions.append({styleitem, removeList});
+			totalUnused += removeList.count();
+		}
+	}
+
+	if (totalUnused == 0)
+	{
+		ScMessageBox::information(this, tr("Remove Unused Styles"),
+			tr("All styles in this document are in use. Nothing to remove."));
+		return;
+	}
+
+	// Confirmation dialog
+	QString message = tr("Found %1 unused style(s):\n\n").arg(totalUnused);
+	message += unusedSummary.join("\n");
+	message += "\n\n";
+	message += tr("Remove all unused styles?");
+
+	int result = ScMessageBox::question(this, tr("Remove Unused Styles"), message, QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+	if (result != QMessageBox::Yes)
+		return;
+
+	// Delete through each StyleItem — modifies temp copies only
+	for (int i = 0; i < deletions.count(); ++i)
+		deletions[i].item->deleteStyles(deletions[i].removeList);
+
+	// Mark dirty and refresh, then apply (same flow as slotDelete)
 	applyButton->setEnabled(true);
 	resetButton->setEnabled(true);
 	reloadStyleView(false);
@@ -753,7 +873,7 @@ void StyleManager::slotRightClick(/*StyleViewItem *item, */const QPoint &point/*
 			QString key = item->rootName() + SEPARATOR + item->text(NAME_COL);
 			if (m_styleActions.contains(key))
 			{
-				m_selectedStyleAction = m_styleActions[key];
+				m_selectedStyleAction = m_styleActions.value(key);
 				if (m_selectedStyleAction)
 				{
 					m_rightClickPopup->insertAction(m_rightClickPopup->actions().first(), m_selectedStyleAction);
@@ -765,8 +885,7 @@ void StyleManager::slotRightClick(/*StyleViewItem *item, */const QPoint &point/*
 	else if (item && item->isRoot())
 	{
 		m_rightClickPopup->removeAction(m_rcpNewId);
-		m_rcpNewId = m_rightClickPopup->addAction( tr("New %1").arg(m_styleClassesPS[item->text(0)]),
-												this, SLOT(slotNewPopup()));
+		m_rcpNewId = m_rightClickPopup->addAction( tr("New %1").arg(m_styleClassesPS.value(item->text(0))), this, SLOT(slotNewPopup()));
 		m_rcpDeleteId->setEnabled(false);
 		m_rcpEditId->setEnabled(false);
 		m_rcpCloneId->setEnabled(false);
@@ -1184,7 +1303,7 @@ void StyleManager::updateActionName(const QString &oldName, const QString &newNa
 
 	if (m_styleActions.contains(oldKey))
 	{
-		ScrAction *a = m_styleActions[oldKey];
+		ScrAction *a = m_styleActions.value(oldKey);
 		disconnect(a, SIGNAL(triggeredData(QString)), this, SLOT(slotApplyStyle(QString)));
 		ScrAction *b = new ScrAction(ScrAction::DataQString, QString(), QString(), tr("&Apply"),
 						   a->shortcut(), m_doc->view(), newKey);
@@ -1236,16 +1355,14 @@ bool StyleManager::shortcutExists(const QString &keys)
 {
 	QKeySequence key(keys);
 
-	QMap<QString, QPointer<ScrAction> >::iterator it;
-	for (it = m_styleActions.begin(); it != m_styleActions.end(); ++it)
+	for (auto it = m_styleActions.cbegin(); it != m_styleActions.cend(); ++it)
 	{
 		if ((*it)->shortcut() == key)
 			return true;
 	}
 
 	ApplicationPrefs *prefsData = &(PrefsManager::instance().appPrefs);
-	for (QMap<QString, Keys>::Iterator it = prefsData->keyShortcutPrefs.KeyActions.begin();
-		 it != prefsData->keyShortcutPrefs.KeyActions.end(); ++it)
+	for (auto it = prefsData->keyShortcutPrefs.KeyActions.cbegin(); it != prefsData->keyShortcutPrefs.KeyActions.cend(); ++it)
 	{
 		if (key.matches(it.value().keySequence) != QKeySequence::NoMatch)
 			return true;

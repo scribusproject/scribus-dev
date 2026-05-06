@@ -293,7 +293,7 @@ void TOCGenerator::generateByStyle()
 				QString key = QString("%1,%2,%3").arg(pageID, tocID, sectionID);
 				paraText.remove(SpecialChars::COLBREAK);
 				paraText.remove(SpecialChars::FRAMEBREAK);
-				for (auto tocEntryIterator = tocSetupIt->entryData.begin(); tocEntryIterator != tocSetupIt->entryData.end(); ++tocEntryIterator)
+				for (auto tocEntryIterator = tocSetupIt->entryData.cbegin(); tocEntryIterator != tocSetupIt->entryData.cend(); ++tocEntryIterator)
 				{
 					if ((*tocEntryIterator).styleToFind == pname)
 					{
@@ -431,7 +431,8 @@ void TOCGenerator::generateIndex()
 				//Sort the page list and join back by comma (should probably use QLocale::createSeparatedList based on the para style language)
 				pages.sort();
 				indexPage = pages.join(",");
-			} else
+			}
+			else
 				indexPage = indexIt->pageID;
 
 			QString tmpEntryText(indexIt->entryText);

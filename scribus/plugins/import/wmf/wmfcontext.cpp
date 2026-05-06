@@ -10,21 +10,6 @@ for which a new license (GPL+exception) is in place.
 
 using namespace std;
 
-WMFGraphicsState::WMFGraphicsState()
-				: windowOrg(0.0, 0.0),
-				  windowExt(1.0, 1.0),
-				  viewportOrg(0.0, 0.0),
-				  viewportExt(1.0, 1.0),
-				  position (0.0, 0.0),
-				  backgroundMode(Qt::TransparentMode),
-				  textAlign(0),
-				  textCharset(1), //DEFAULT_CHARSET
-				  textRotation(0),
-				  windingFill(false)
-{
-
-}
-
 void WMFGraphicsState::setWindowOrg(double x, double y)
 {
 	windowOrg = QPointF(x, y);
@@ -65,7 +50,7 @@ WMFContext::WMFContext()
 
 void WMFContext::save()
 {
-	if (this->count() > 0)
+	if (!this->isEmpty())
 		push( WMFGraphicsState(top()) );
 	else
 	{

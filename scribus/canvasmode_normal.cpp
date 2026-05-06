@@ -51,6 +51,7 @@
 #include "scribusdoc.h"
 #include "scribusview.h"
 #include "selection.h"
+#include "textframespellchecker.h"
 #include "ui/aligndistribute.h"
 #include "ui/contextmenu.h"
 #include "ui/customfdialog.h"
@@ -69,7 +70,7 @@ inline bool CanvasMode_Normal::GetItem(PageItem** pi)
 
 void CanvasMode_Normal::drawControls(QPainter* p)
 {
-//	qDebug() << "CanvasMode_Normal::drawControls";
+	// qDebug() << Q_FUNC_INFO;
 	if (m_canvas->m_viewMode.operItemMoving)
 		drawOutline(p, m_objectDeltaPos.x(), m_objectDeltaPos.y());
 	else
@@ -91,7 +92,7 @@ void CanvasMode_Normal::leaveEvent(QEvent *e)
 
 void CanvasMode_Normal::activate(bool fromGesture)
 {
-//	qDebug() << "CanvasMode_Normal::activate" << fromGesture;
+	// qDebug() << Q_FUNC_INFO << fromGesture;
 	CanvasMode::activate(fromGesture);
 
 	m_canvas->m_viewMode.m_MouseButtonPressed = false;
@@ -117,13 +118,14 @@ void CanvasMode_Normal::activate(bool fromGesture)
 
 void CanvasMode_Normal::deactivate(bool forGesture)
 {
-//	qDebug() << "CanvasMode_Normal::deactivate" << forGesture;
+	// qDebug() << Q_FUNC_INFO << forGesture;
 	m_view->setRedrawMarkerShown(false);
 	CanvasMode::deactivate(forGesture);
 }
 
 void CanvasMode_Normal::mouseDoubleClickEvent(QMouseEvent *m)
 {
+	// qDebug()<<Q_FUNC_INFO;
 	const QPoint globalPos = m->globalPosition().toPoint();
 	PageItem *currItem = nullptr;
 
@@ -205,6 +207,17 @@ void CanvasMode_Normal::mouseDoubleClickEvent(QMouseEvent *m)
 			{
 				m_view->requestMode(modeEdit);
 			}
+			// Plugin-editable groups store the action name to trigger
+			// in a "plugin-editAction" ObjectAttribute.
+			else if (currItem->itemType() == PageItem::Group && !currItem->getObjectAttribute("plugin-editAction").value.isEmpty())
+			{
+				QString action = currItem->getObjectAttribute("plugin-editAction").value;
+				if (m_ScMW->scrActions.contains(action))
+				{
+					m_ScMW->pluginEditItem = currItem;
+					m_ScMW->scrActions[action]->trigger();
+				}
+			}
 			else
 			{
 				m_view->requestMode(modeEditClip);
@@ -236,7 +249,9 @@ void CanvasMode_Normal::mouseDoubleClickEvent(QMouseEvent *m)
 				//if we weren't in mode edit before.
 				//unsure if this is correct, but its ok given we had no
 				//double click select until now.
-//				mousePressEvent(m);
+				//mousePressEvent(m);
+
+				TextFrameSpellChecker::instance()->frameActivated(currItem->asTextFrame());
 			}
 		}
 		else if (currItem->isSymbol())
@@ -1301,7 +1316,7 @@ void CanvasMode_Normal::handleRadioButtonPress(PageItem* currItem)
 		PageItem *group = currItem->Parent->asGroupFrame();
 		for (int a = 0; a < group->groupItemList.count(); a++)
 		{
-			PageItem *gItem = group->groupItemList[a];
+			PageItem *gItem = group->groupItemList.at(a);
 			if ((gItem->isAnnotation()) && (gItem->annotation().Type() == Annotation::RadioButton))
 			{
 				gItem->update();
@@ -1380,7 +1395,7 @@ void CanvasMode_Normal::handleRadioButtonRelease(PageItem* currItem)
 		PageItem *group = currItem->Parent->asGroupFrame();
 		for (int a = 0; a < group->groupItemList.count(); a++)
 		{
-			PageItem *gItem = group->groupItemList[a];
+			PageItem *gItem = group->groupItemList.at(a);
 			if ((gItem->isAnnotation()) && (gItem->annotation().Type() == Annotation::RadioButton))
 			{
 				gItem->annotation().setCheckState(false);

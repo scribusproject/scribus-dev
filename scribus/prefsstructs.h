@@ -168,6 +168,7 @@ struct DocumentSetupPrefs
 	bool AutoSaveLocation;
 	QString AutoSaveDir;
 	bool saveCompressed;
+	int bindingDirection; //! 0 = LTR, 1 = RTL
 };
 
 //Guides
@@ -304,6 +305,14 @@ struct HyphenatorPrefs
 	QSet<QString> ignoredWords; //! List of words the hyphenator ignores
 	bool Automatic;
 	bool AutoCheck;
+};
+
+struct SpellCheckPrefs
+{
+	bool liveSpellCheckEnabled { true };
+	bool showMisspeltIndicator { true };
+	int maxSuggestions { 10 };
+	int debounceDelay { 500 }; // milliseconds
 };
 
 struct FontPrefs
@@ -492,6 +501,7 @@ struct ApplicationPrefs
 	FontPrefs fontPrefs;
 	GuidesPrefs guidesPrefs;
 	HyphenatorPrefs hyphPrefs;
+	SpellCheckPrefs spellCheckPrefs;
 	ImageCachePrefs imageCachePrefs;
 	IndexPrefs indexPrefs;
 	ItemAttrPrefs itemAttrPrefs;

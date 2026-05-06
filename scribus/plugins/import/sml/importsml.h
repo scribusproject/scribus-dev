@@ -53,19 +53,19 @@ public:
 	\param showProgress if progress must be displayed
 	\retval bool true if import was ok
 	 */
-	bool import(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
+	bool importFile(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
 	QImage readThumbnail(const QString& fn);
 
 private:
-	void parseHeader(const QString& fName, double &b, double &h);
+	void parseHeader(const QString& fName, double &b, double &h) const;
 	bool convert(const QString& fn);
-	void finishItem(QDomElement &e, PageItem* ite);
-	void processShapeNode(QDomElement &elem);
-	QString processColor(QDomElement &elem);
-	void processStrokeNode(QDomElement &elem);
-	void processFillNode(QDomElement &elem);
-	void processLineNode(QDomElement &elem);
-	void processPointNode(QDomElement &elem);
+	void finishItem(const QDomElement &e, PageItem* ite);
+	void processShapeNode(const QDomElement &elem);
+	QString processColor(const QDomElement &elem);
+	void processStrokeNode(const QDomElement &elem);
+	void processFillNode(const QDomElement &elem);
+	void processLineNode(const QDomElement &elem);
+	void processPointNode(const QDomElement &elem);
 	
 	QList<PageItem*> Elements;
 	int currentItemNr { 0 };
@@ -94,7 +94,7 @@ private:
 
 	FPointArray Coords;
 	bool interactive { false };
-	MultiProgressDialog * progressDialog { nullptr };
+	MultiProgressDialog* progressDialog { nullptr };
 	bool cancel { false };
 	ScribusDoc* m_Doc { nullptr };
 	Selection* tmpSel { nullptr };

@@ -452,7 +452,7 @@ void PropertyWidget_ParEffect::handleNumName(const QString& numName)
 		int level = qMin(numLevelSpin->value(), numS->m_counters.count()) - 1;
 		numLevelSpin->setValue(level + 1);
 		newStyle.setNumLevel(level);
-		Numeration num = numS->m_nums[level];
+		Numeration num = numS->m_nums.at(level);
 		numFormatCombo->setCurrentFormat(num.numFormat);
 		numStart->setValue(num.start);
 		numPrefix->setText(num.prefix);
@@ -575,7 +575,7 @@ void PropertyWidget_ParEffect::handleChanges(PageItem *item, ParagraphStyle &new
 		disconnect(m_doc             , SIGNAL(docChanged())      , this, SLOT(handleSelectionChanged()));
 
 		Selection tempSelection(this, false);
-		tempSelection.addItem(item, true);
+		tempSelection.addItem(item);
 		m_doc->itemSelection_ApplyParagraphStyle(newStyle, &tempSelection);
 		m_doc->updateNumbers();
 

@@ -25,6 +25,7 @@
 #include "appmodes.h"
 #include "canvas.h"
 #include "canvasmode.h"
+#include "framelinkrouter.h"
 #include "pageitem_textframe.h"
 #include "pageitem_group.h"
 #include "pageitemiterator.h"
@@ -406,7 +407,7 @@ PageItem* Canvas::itemUnderCursor(QPointF globalPos, PageItem* itemAbove, bool a
 	// look for masterpage items first
 	if (allowMasterItems && !m_doc->masterPageMode() && m_doc->currentPage()->FromMaster.count() != 0)
 	{
-		const ScPage* Mp = m_doc->MasterPages.at(m_doc->MasterNames[m_doc->currentPage()->masterPageName()]);
+		const ScPage* Mp = m_doc->MasterPages.at(m_doc->MasterNames.value(m_doc->currentPage()->masterPageName()));
 		// if itemAbove is given, we expect to find it among the masterpage items of this page
 		int currNr = itemAbove ? m_doc->currentPage()->FromMaster.indexOf(itemAbove) - 1 : m_doc->currentPage()->FromMaster.count() - 1;
 		if (currNr < 0)
@@ -998,7 +999,7 @@ void Canvas::drawContents(QPainter *psx, int clipx, int clipy, int clipw, int cl
 		int renderStackCount = m_doc->guidesPrefs().renderStackOrder.count();
 		for (int r = 0; r < renderStackCount; r++)
 		{
-			int ri = m_doc->guidesPrefs().renderStackOrder[r];
+			int ri = m_doc->guidesPrefs().renderStackOrder.at(r);
 			if (ri == 0)
 			{
 				if (!m_viewMode.viewAsPreview)
@@ -1050,7 +1051,7 @@ void Canvas::drawContents(QPainter *psx, int clipx, int clipy, int clipw, int cl
 		int renderStackCount = m_doc->guidesPrefs().renderStackOrder.count();
 		for (int r = 0; r < renderStackCount; r++)
 		{
-			int ri = m_doc->guidesPrefs().renderStackOrder[r];
+			int ri = m_doc->guidesPrefs().renderStackOrder.at(r);
 			if (ri == 0)
 			{
 				DrawPageMargins(painter, clip, true);			// drawing stack id = 0
@@ -1211,7 +1212,7 @@ void Canvas::drawControlsMovingItemsRect(QPainter* pp)
 							}
 							else
 							{
-								MultiLine ml = m_doc->docLineStyles[currItem->NamedLStyle];
+								MultiLine ml = m_doc->docLineStyles.value(currItem->NamedLStyle);
 								lw2 = qRound(ml[ml.size()-1].Width  / 2.0);
 								lw = qRound(qMax(ml[ml.size()-1].Width, 1.0));
 								le = static_cast<Qt::PenCapStyle>(ml[ml.size()-1].LineEnd);
@@ -1245,7 +1246,7 @@ void Canvas::drawControlsMovingItemsRect(QPainter* pp)
 				}
 				else
 				{
-					MultiLine ml = m_doc->docLineStyles[currItem->NamedLStyle];
+					MultiLine ml = m_doc->docLineStyles.value(currItem->NamedLStyle);
 					lw2 = qRound(ml[ml.size()-1].Width  / 2.0);
 					lw = qRound(qMax(ml[ml.size()-1].Width, 1.0));
 					le = static_cast<Qt::PenCapStyle>(ml[ml.size()-1].LineEnd);
@@ -1366,7 +1367,7 @@ void Canvas::DrawMasterItems(ScPainter *painter, const ScPage *page, const ScLay
 	                   qRound(clip.width() / m_viewMode.scale + 0.5), qRound(clip.height() / m_viewMode.scale + 0.5));
 
 	PageItem *currItem;
-	ScPage* Mp = m_doc->MasterPages.at(m_doc->MasterNames[page->masterPageName()]);
+	ScPage* Mp = m_doc->MasterPages.at(m_doc->MasterNames.value(page->masterPageName()));
 	if (((layer.blendMode != 0) || (layer.transparency != 1.0)) && (!layer.outlineMode))
 		painter->beginLayer(layer.transparency, layer.blendMode);
 	int pageFromMasterCount = page->FromMaster.count();
@@ -1473,7 +1474,7 @@ void Canvas::DrawPageItems(ScPainter *painter, const ScLayer& layer, QRect clip,
 	//then we must be sure that text frames are valid and all notes frames are created before we start drawing
 	if (!notesFramesPass && !m_doc->notesList().isEmpty())
 	{
-		for (auto it = m_doc->Items->begin(); it != m_doc->Items->end(); ++it)
+		for (auto it = m_doc->Items->cbegin(); it != m_doc->Items->cend(); ++it)
 		{
 			PageItem* currItem = *it;
 			if ( !currItem->isTextFrame()
@@ -2134,10 +2135,6 @@ void Canvas::DrawPageIndicator(ScPainter *p, const QRectF& clip, bool master)
 	}
 }
 
-/**
-  draws the links between textframe chains.
-  needs the list of visible textframes in m_viewMode.linkedFramesToShow
- */
 void Canvas::drawFrameLinks(ScPainter* painter)
 {
 	PageItem *currItem = nullptr;
@@ -2151,76 +2148,42 @@ void Canvas::drawFrameLinks(ScPainter* painter)
 			currItem = nullptr;
 	}
 
-	//Draw the frame links
 	painter->save();
+
 	if (m_doc->guidesPrefs().linkShown || m_viewMode.drawFramelinksWithContents)
 	{
 		for (int i = 0; i < m_viewMode.linkedFramesToShow.count(); ++i)
 		{
-			PageItem* nextItem = m_viewMode.linkedFramesToShow.at(i);
-			while (nextItem != nullptr)
-			{
-				if (nextItem->nextInChain() != nullptr)
-				{
-					FPoint start, end;
-					calculateFrameLinkPoints(nextItem, nextItem->nextInChain(), start, end);
-					drawLinkFrameLine(painter, start, end);
-				}
-				nextItem = nextItem->nextInChain();
-			}
+			PageItem* startItem = m_viewMode.linkedFramesToShow.at(i);
+			drawChainLinks(painter, startItem);
 		}
 	}
-	else if (((m_doc->appMode == modeLinkFrames) || (m_doc->appMode == modeUnlinkFrames)) && (currItem != nullptr))
+	else if (((m_doc->appMode == modeLinkFrames) || (m_doc->appMode == modeUnlinkFrames))
+			 && (currItem != nullptr))
 	{
-		PageItem *nextItem = currItem->firstInChain();
-		while (nextItem != nullptr)
-		{
-			if (nextItem->nextInChain() != nullptr)
-			{
-				FPoint start, end;
-				calculateFrameLinkPoints(nextItem, nextItem->nextInChain(), start, end);
-				drawLinkFrameLine(painter, start, end);
-			}
-			nextItem = nextItem->nextInChain();
-		}
+		drawChainLinks(painter, currItem->firstInChain());
 	}
+
 	painter->setLineWidth(1);
 	painter->setPenOpacity(1.0);
 	painter->restore();
 }
 
 
-/**
-  draws one linkline between textframes
-  */
-void Canvas::drawLinkFrameLine(ScPainter* painter, const FPoint &start, const FPoint &end)
+void Canvas::drawChainLinks(ScPainter* painter, PageItem* chainHead)
 {
-	//CB FIXME Add some checking that the painter is setup?
-	Q_ASSERT(painter != nullptr);
-	painter->setPen(Qt::black, 1.0 / m_viewMode.scale, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
-	painter->setPenOpacity(1.0);
-	painter->drawLine(start, end);
-	QTransform arrowTrans;
-	arrowTrans.translate(end.x(), end.y());
-	double r = atan2(end.y()-start.y(), end.x()-start.x())*(180.0/M_PI);
-	arrowTrans.rotate(r);
-	double sc = 0.8 / m_viewMode.scale;
-	arrowTrans.scale(sc, sc);
-	FPointArray arrow;
-	arrow.addQuadPoint(-12, 0, -12, 0, -12, 0, -12, 0);
-	arrow.addQuadPoint(-15, -5, -15, -5, -15, -5, -15, -5);
-	arrow.addQuadPoint(0, 0, 0, 0, 0, 0, 0, 0);
-	arrow.addQuadPoint(-15, 5, -15, 5, -15, 5, -15, 5);
-	arrow.addQuadPoint(-12, 0, -12, 0, -12, 0, -12, 0);
-	arrow.map(arrowTrans);
-	painter->setBrush(painter->pen());
-	painter->setBrushOpacity(1.0);
-	painter->setLineWidth(0);
-	painter->setFillMode(ScPainter::Solid);
-	painter->setupPolygon(&arrow);
-	painter->fillPath();
+	PageItem* curr = chainHead;
+	while (curr != nullptr && curr->nextInChain() != nullptr)
+	{
+		PageItem* next = curr->nextInChain();
+		FrameLinkRouter router(curr, next, m_viewMode.scale);
+		router.setSourceIsAlsoEntry(curr->prevInChain() != nullptr);
+		router.setDestinationIsAlsoExit(next->nextInChain() != nullptr);
+		router.route();
+		router.draw(painter);
+		curr = next;
+	}
 }
-
 
 
 /**
@@ -2294,109 +2257,6 @@ void Canvas::TransformM(const PageItem *currItem, QPainter *p) const
 		p->translate(0, currItem->height());
 		p->scale(1, -1);
 	}
-}
-
-void Canvas::calculateFrameLinkPoints(const PageItem *pi1, const PageItem *pi2, FPoint & start, FPoint & end)
-{
-	if (pi1 == nullptr || pi2 == nullptr)
-		return;
-	//Calculate the link points of the frames
-	double x11 = pi1->xPos();
-	double y11 = pi1->yPos();
-	double x12 = x11 + pi1->width();
-	double y12 = y11 + pi1->height();
-	if (pi1->isGroupChild())
-	{
-		QTransform itemTrans = pi1->getTransform();
-		QPointF itPos = itemTrans.map(QPointF(0, 0));
-		x11 = itPos.x();
-		y11 = itPos.y();
-		double grScXi = 1.0;
-		double grScYi = 1.0;
-		getScaleFromMatrix(itemTrans, grScXi, grScYi);
-		if (itemTrans.m11() < 0)
-			x11 -= pi1->width() * grScXi;
-		if (itemTrans.m22() < 0)
-			y11 -= pi1->height() * grScYi;
-		x12 = x11 + pi1->width() * grScXi;
-		y12 = y11 + pi1->height() * grScYi;
-	}
-	double x1mid = x11 + (x12 - x11) / 2.0;
-	double y1mid = y11 + (y12 - y11) / 2.0;
-					
-	if (pi1->rotation()!=0.000)
-	{
-		FPoint tempPoint(0,0, x11, y11, pi1->rotation(), 1, 1);
-		x11 = tempPoint.x();
-		y11 = tempPoint.y();
-		FPoint tempPoint2(0, 0, x12, y12, pi1->rotation(), 1, 1);
-		x12 = tempPoint2.x();
-		y12 = tempPoint2.y();
-		FPoint tempPoint3(0, 0, x1mid, y1mid, pi1->rotation(), 1, 1);
-		x1mid = tempPoint3.x();
-		y1mid = tempPoint3.y();
-	}
-					
-					
-	double a1, b1, a2, b2;
-	a1 = a2 = b1 = b2 = 0;
-	double x21 = pi2->xPos();
-	double y21 = pi2->yPos();
-	double x22 = x21 + pi2->width();
-	double y22 = y21 + pi2->height();
-	if (pi2->isGroupChild())
-	{
-		QTransform itemTrans = pi2->getTransform();
-		QPointF itPos = itemTrans.map(QPointF(0, 0));
-		x21 = itPos.x();
-		y21 = itPos.y();
-		double grScXi = 1.0;
-		double grScYi = 1.0;
-		getScaleFromMatrix(itemTrans, grScXi, grScYi);
-		if (itemTrans.m11() < 0)
-			x21 -= pi2->width() * grScXi;
-		if (itemTrans.m22() < 0)
-			y11 -= pi2->height() * grScYi;
-		x22 = x21 + pi2->width() * grScXi;
-		y22 = y21 + pi2->height() * grScYi;
-	}
-
-	double x2mid = x21 + (x22 - x21) / 2.0;
-	double y2mid = y21 + (y22 - y21) / 2.0;
-					
-	if (pi2->rotation()!=0.000)
-	{
-		FPoint tempPoint(0,0, x21, y21, pi2->rotation(), 1, 1);
-		x21 = tempPoint.x();
-		y21 = tempPoint.y();
-		FPoint tempPoint2(0, 0, x22, y22, pi2->rotation(), 1, 1);
-		x22 = tempPoint2.x();
-		y22 = tempPoint2.y();
-		FPoint tempPoint3(0, 0, x2mid, y2mid, pi2->rotation(), 1, 1);
-		x2mid = tempPoint3.x();
-		y2mid = tempPoint3.y();
-	}
-					
-	if (x22 < x11) { a1 = x11; a2 = x22; }
-	if (x21 > x12) { a1 = x12; a2 = x21; }
-	if (y22 < y11) { b1 = y11; b2 = y22; }
-	if (y21 > y12) { b1 = y12; b2 = y21; }
-					
-	if (x21 < x12 && x21 > x11) { a1 = x1mid; a2 = x2mid; }
-	if (x21 < x11 && x22 > x11) { a1 = x1mid; a2 = x2mid; }
-
-	if (y21 < y12 && y21 > y11) { b1 = y1mid; b2 = y2mid; }
-	if (y21 < y11 && y22 > y11) { b1 = y1mid; b2 = y2mid; }
-	
-	//When our points (in pt) are exactly the same, cover this too. #3634
-	if (x11 == x21) { a1 = x1mid; a2 = x2mid; }
-	if (y11 == y21) { b1 = y1mid; b2 = y2mid; }
-	
-	//Set the link frame lines' endpoints
-	start.setXY(a1-pi1->xPos(), b1-pi1->yPos());
-	start.transform(pi1->xPos(), pi1->yPos(), pi1->rotation(), 1, 1, false);
-	end.setXY(a2-pi2->xPos(), b2-pi2->yPos());
-	end.transform(pi2->xPos(), pi2->yPos(), pi2->rotation(), 1, 1, false);
 }
 
 QPixmap Canvas::createPixmap(double w, double h)
@@ -2565,15 +2425,15 @@ void Canvas::setupEditHRuler(PageItem * item, bool forceAndReset)
 	
 	double controlHash(0.0);
 	controlHash = item->xPos() 
-			+ item->yPos()				* 1.0
-			+ item->m_columnGap 				* 2.0
-			+ item->m_columns 				* 3.0
-			+ item->textToFrameDistLeft()		* 4.0 
-			+ item->textToFrameDistRight()		* 5.0
-			+ item->currentStyle().firstIndent()	* 6.0
+			+ item->yPos() * 1.0
+			+ item->m_columnGap * 2.0
+			+ item->m_columns * 3.0
+			+ item->textToFrameDistLeft() * 4.0
+			+ item->textToFrameDistRight() * 5.0
+			+ item->currentStyle().firstIndent() * 6.0
 			+ item->currentStyle().leftMargin()	* 7.0
-			+ item->width()				* 8.0
-			+ item->currentStyle().rightMargin()	* 9.0
+			+ item->width() * 8.0
+			+ item->currentStyle().rightMargin() * 9.0
 			+ (item->imageFlippedH() ? 32.32 : 13.13);
 	
 	const ParagraphStyle& currParaStyle = item->currentStyle();

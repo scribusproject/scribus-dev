@@ -407,6 +407,8 @@ public:
 	static QString UnLock;
 	static QString SizeLock;
 	static QString SizeUnLock;
+	static QString AspectRatioLock;
+	static QString AspectRatioUnLock;
 	static QString EnablePrint;
 	static QString DisablePrint;
 	static QString Ungroup;
@@ -634,6 +636,12 @@ public:
 	static QString SoftShadowBlendMode;
 	static QString SoftShadowErase;
 	static QString SoftShadowObjectTrans;
+	static QString SpellCheck;
+	static QString TextLowerCase;
+	static QString TextUpperCase;
+	static QString TextSentenceCase;
+	static QString TextCapitalize;
+	static QString TextToggleCase;
 	/*@}*/
 
 	/**

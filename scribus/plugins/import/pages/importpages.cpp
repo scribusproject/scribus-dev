@@ -80,6 +80,7 @@ QImage PagesPlug::readThumbnail(const QString& fName)
 	if (!uz->open(fName))
 	{
 		delete uz;
+		uz = nullptr;
 		if (progressDialog)
 			progressDialog->close();
 		return QImage();
@@ -154,10 +155,7 @@ QImage PagesPlug::readThumbnail(const QString& fName)
 			m_Doc->m_Selection->delaySignalsOn();
 			if (Elements.count() > 0)
 			{
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				double xs = tmpSel->width();
 				double ys = tmpSel->height();
@@ -180,10 +178,11 @@ QImage PagesPlug::readThumbnail(const QString& fName)
 	}*/
 	uz->close();
 	delete uz;
+	uz = nullptr;
 	return tmp;
 }
 
-bool PagesPlug::import(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
+bool PagesPlug::importFile(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
 {
 	bool success = false;
 	interactive = (flags & LoadSavePlugin::lfInteractive);
@@ -227,7 +226,7 @@ bool PagesPlug::import(const QString& fNameIn, const TransactionSettings& trSett
 	docHeight = PrefsManager::instance().appPrefs.docSetupPrefs.pageHeight;
 	baseX = 0;
 	baseY = 0;
-	if (!interactive || (flags & LoadSavePlugin::lfInsertPage))
+	if (m_Doc && (!interactive || (flags & LoadSavePlugin::lfInsertPage)))
 	{
 		m_Doc->setPage(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false);
 		m_Doc->addPage(0);
@@ -235,18 +234,15 @@ bool PagesPlug::import(const QString& fNameIn, const TransactionSettings& trSett
 		baseX = 0;
 		baseY = 0;
 	}
-	else
+	else if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
 	{
-		if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
-		{
-			m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
-			ScCore->primaryMainWindow()->HaveNewDoc();
-			ret = true;
-			baseX = 0;
-			baseY = 0;
-			baseX = m_Doc->currentPage()->xOffset();
-			baseY = m_Doc->currentPage()->yOffset() + m_Doc->currentPage()->height() / 2.0;
-		}
+		m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
+		ScCore->primaryMainWindow()->HaveNewDoc();
+		ret = true;
+		baseX = 0;
+		baseY = 0;
+		baseX = m_Doc->currentPage()->xOffset();
+		baseY = m_Doc->currentPage()->yOffset() + m_Doc->currentPage()->height() / 2.0;
 	}
 	if (!ret && interactive)
 	{
@@ -282,7 +278,7 @@ bool PagesPlug::import(const QString& fNameIn, const TransactionSettings& trSett
 		m_Doc->scMW()->setScriptRunning(false);
 		m_Doc->setLoading(false);
 		QApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
-		if ((Elements.count() > 0) && !ret && interactive)
+		if (!Elements.isEmpty() && !ret && interactive)
 		{
 			if (flags & LoadSavePlugin::lfScripted)
 			{
@@ -293,10 +289,7 @@ bool PagesPlug::import(const QString& fNameIn, const TransactionSettings& trSett
 				if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 				{
 					m_Doc->m_Selection->delaySignalsOn();
-					for (int dre=0; dre<Elements.count(); ++dre)
-					{
-						m_Doc->m_Selection->addItem(Elements.at(dre), true);
-					}
+					m_Doc->m_Selection->addItems(Elements);
 					m_Doc->m_Selection->delaySignalsOff();
 					m_Doc->m_Selection->setGroupRect();
 					if (m_Doc->view() != nullptr)
@@ -309,32 +302,25 @@ bool PagesPlug::import(const QString& fNameIn, const TransactionSettings& trSett
 				m_Doc->DraggedElem = nullptr;
 				m_Doc->DragElements.clear();
 				m_Doc->m_Selection->delaySignalsOn();
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				ScElemMimeData* md = ScriXmlDoc::writeToMimeData(m_Doc, tmpSel);
 				m_Doc->itemSelection_DeleteItem(tmpSel);
 				m_Doc->view()->updatesOn(true);
-				if ((importedColors.count() != 0) && (!((flags & LoadSavePlugin::lfKeepGradients) || (flags & LoadSavePlugin::lfKeepColors) || (flags & LoadSavePlugin::lfKeepPatterns))))
+				if (!importedColors.isEmpty() && (!((flags & LoadSavePlugin::lfKeepGradients) || (flags & LoadSavePlugin::lfKeepColors) || (flags & LoadSavePlugin::lfKeepPatterns))))
 				{
-					for (int cd = 0; cd < importedColors.count(); cd++)
-					{
-						m_Doc->PageColors.remove(importedColors[cd]);
-					}
+					for (const auto& importedColor : std::as_const(importedColors))
+						m_Doc->PageColors.remove(importedColor);
 				}
-				if ((importedPatterns.count() != 0) && (!(flags & LoadSavePlugin::lfKeepPatterns)))
+				if (!importedPatterns.isEmpty() && (!(flags & LoadSavePlugin::lfKeepPatterns)))
 				{
-					for (int cd = 0; cd < importedPatterns.count(); cd++)
-					{
-						m_Doc->docPatterns.remove(importedPatterns[cd]);
-					}
+					for (const auto& importedPattern : std::as_const(importedPatterns))
+						m_Doc->docPatterns.remove(importedPattern);
 				}
 				m_Doc->m_Selection->delaySignalsOff();
 				// We must copy the TransationSettings object as it is owned
 				// by handleObjectImport method afterwards
-				TransactionSettings* transacSettings = new TransactionSettings(trSettings);
+				auto* transacSettings = new TransactionSettings(trSettings);
 				m_Doc->view()->handleObjectImport(md, transacSettings);
 				m_Doc->DragP = false;
 				m_Doc->DraggedElem = nullptr;
@@ -395,6 +381,7 @@ bool PagesPlug::convert(const QString& fn)
 	if (!uz->open(fn))
 	{
 		delete uz;
+		uz = nullptr;
 		if (progressDialog)
 			progressDialog->close();
 		return false;
@@ -406,6 +393,7 @@ bool PagesPlug::convert(const QString& fn)
 		retVal = parseDocReference("index.xml.gz", true);
 	uz->close();
 	delete uz;
+	uz = nullptr;
 	if (progressDialog)
 		progressDialog->close();
 	return retVal;
@@ -421,7 +409,8 @@ bool PagesPlug::parseDocReference(const QString& designMap, bool compressed)
 	if (compressed)
 	{
 		QTemporaryFile tmpFile(QDir::tempPath() + "/scribus_temp_zip_XXXXXX.dat");
-		tmpFile.open();
+		if (!tmpFile.open())
+			return false;
 		QString fname = getLongPathName(tmpFile.fileName());
 		tmpFile.write(f);
 		tmpFile.close();
@@ -653,7 +642,7 @@ bool PagesPlug::parseDocReference(const QString& designMap, bool compressed)
 							int count = spg.text().length();
 							QString tgText = spg.text();
 							tgText = tgText.left(count - totalCount);
-							if (tgText.length() > 0)
+							if (!tgText.isEmpty())
 							{
 								itemText.insertChars(posC, tgText);
 								itemText.applyStyle(posC, tmpStyle);
@@ -1165,7 +1154,7 @@ PageItem* PagesPlug::parseObjReference(QDomElement &draw)
 					GElements.append(ite);
 			}
 		}
-		if (GElements.count() > 0)
+		if (!GElements.isEmpty())
 		{
 			QTransform m;
 			m.translate(obState.width / 2.0, obState.height / 2.0);
@@ -1348,7 +1337,7 @@ PageItem* PagesPlug::parseObjReference(QDomElement &draw)
 										int count = spg.text().length();
 										QString tgText = spg.text();
 										tgText = tgText.left(count - totalCount);
-										if (tgText.length() > 0)
+										if (!tgText.isEmpty())
 										{
 											itemText.insertChars(posC, tgText);
 											itemText.applyStyle(posC, tmpStyle);
@@ -1629,7 +1618,7 @@ void PagesPlug::applyCharAttrs(CharStyle &tmpCStyle, const QString& pAttrs)
 	}
 }
 
-void PagesPlug::finishItem(PageItem* item, ObjState &obState)
+void PagesPlug::finishItem(PageItem* item, const ObjState &obState)
 {
 	item->ClipEdited = true;
 	item->FrameType = 3;

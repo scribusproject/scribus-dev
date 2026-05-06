@@ -134,7 +134,7 @@ QString PluginManager::getPluginName(const QString& fileName)
 	if (baseName.endsWith(platformDllExtension()))
 		baseName.chop(1 + platformDllExtension().length());
 	// check name
-	for (QChar c : baseName)
+	for (QChar c : std::as_const(baseName))
 	{
 		if (!c.isLetterOrNumber() && c != '_' )
 		{
@@ -175,7 +175,7 @@ int PluginManager::initPlugin(const QString& fileName)
 
 void PluginManager::initPlugs()
 {
-	Q_ASSERT(!pluginMap.count());
+	Q_ASSERT(pluginMap.isEmpty());
 	QString libPattern = QString("*.%1*").arg(platformDllExtension());
 	QMap<QString, int> allPlugs;
 	int loaded = 0;

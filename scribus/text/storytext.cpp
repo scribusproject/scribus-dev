@@ -33,6 +33,7 @@ pageitem.cpp  -  description
 #include "sctext_shared.h"
 #include "selection.h"
 #include "storytext.h"
+#include "text/storytextsnapshot.h"
 #include "textnote.h"
 #include "util.h"
 #include "resourcecollection.h"
@@ -828,6 +829,8 @@ void StoryText::replaceSelection(const QString& newText)
 	int selLength = selectionLength();
 
 	int lengthDiff = newText.length() - selLength;
+
+	/*
 	if (lengthDiff == 0)
 	{
 		for (int i = 0; i < selLength; ++i)
@@ -846,6 +849,20 @@ void StoryText::replaceSelection(const QString& newText)
 			replaceChar(selStart + i, newText[i]);
 		removeChars(selStart + newText.length(), -lengthDiff);
 	}
+	*/
+
+	if (lengthDiff > 0)
+	{
+		// extend the selected string with its last char until the lengths match
+		auto lastChar = selectedText().mid(selLength -1, 1);
+		insertChars(selStart + selLength -1, lastChar.repeated(lengthDiff), true);
+	}
+
+	for (int i = 0; i < newText.length(); ++i)
+		replaceChar(selStart + i, newText[i]);
+
+	if (lengthDiff < 0)
+		removeChars(selStart + newText.length(), -lengthDiff);
 
 	deselectAll();
 	if (!newText.isEmpty())
@@ -1864,6 +1881,10 @@ int StoryText::endOfWord(int pos) const
 	icu::UnicodeString unicodeStr(true, (const UChar*) fullText.utf16(), fullText.length());
 	it->setText(unicodeStr);
 
+	// The provided position is already at the limit of a word
+	if (it->isBoundary(pos) && (text(pos).isSpace() || text(pos).isPunct()))
+		return pos;
+
 	pos = it->following(pos);
 	return pos;
 }
@@ -2197,6 +2218,12 @@ void StoryText::invalidate(int firstItem, int endItem)
 	}
 	if (!signalsBlocked())
 		emit changed(firstItem, endItem);
+}
+
+StoryTextSnapshot StoryText::createSnapshot() const
+{
+	// Delegate to the static factory method
+	return StoryTextSnapshot::create(*this);
 }
 
 // physical view

@@ -1,9 +1,12 @@
-/*
-For general Scribus (>=1.3.2) copyright and licensing information please refer
-to the COPYING file provided with the program. Following this notice may exist
-a copyright and/or license notice that predates the release of Scribus 1.3.2
-for which a new license (GPL+exception) is in place.
-*/
+/***************************************************************************
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+***************************************************************************/
+
 #ifndef SCIMGDATALOADER_JPEGXL_H
 #define SCIMGDATALOADER_JPEGXL_H
 
@@ -17,6 +20,15 @@ for which a new license (GPL+exception) is in place.
 class ScImgDataLoader_JPEGXL : public ScImgDataLoader
 {
 public:
+
+	struct JXLImageInfo
+	{
+		size_t width;
+		size_t height;
+		int channels { -1 };
+		int bits_per_sample { -1 };
+	};
+
 	ScImgDataLoader_JPEGXL();
 
 	bool preloadAlphaChannel(const QString& fn, int page, int res, bool& hasAlpha) override;
@@ -26,15 +38,9 @@ public:
 protected:
 	void initSupportedFormatList();
 	bool loadFile(const char* filename, std::vector<uint8_t>* out);
-	bool decodeJpegXlOneShot(const uint8_t* jxl, size_t size,
-							 std::vector<float>* pixels, size_t* xsize,
-							 size_t* ysize, QByteArray* icc_profile);
-	QImage tmpImage;
-	JxlBasicInfo m_basicinfo;
-	QImage::Format m_input_image_format;
-//	QImage::Format m_target_image_format;
+	bool decodeJpegXlOneShot(const uint8_t* jxl, size_t size, std::vector<uint8_t>* pixels, JXLImageInfo *imageInfo, QByteArray* icc_profile);
 
-	JxlPixelFormat m_input_pixel_format;
+	JxlBasicInfo m_basicinfo;
 
 };
 

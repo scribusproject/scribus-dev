@@ -132,7 +132,7 @@ public:
 	\retval EPSPlug plugin
 	*/
 	XarPlug( ScribusDoc* doc, int flags );
-	~XarPlug();
+	~XarPlug() override;
 
 	/*!
 	\author Franz Schmid
@@ -144,12 +144,12 @@ public:
 	\param showProgress if progress must be displayed
 	\retval bool true if import was ok
 	 */
-	bool import(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
+	bool importFile(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
 	QImage readThumbnail(const QString& fn);
 	bool readColors(const QString& fileName, ColorList & colors);
 
 private:
-	void parseHeader(const QString& fName, double &x, double &y, double &b, double &h);
+	void parseHeader(const QString& fName, double &x, double &y, double &b, double &h) const;
 	bool convert(const QString& fn);
 	void parseXar(QDataStream &ts);
 	void handleTags(quint32 tag, quint32 dataLen, QDataStream &ts);
@@ -182,7 +182,7 @@ private:
 	void handleSimpleGradientTransparencySkewed(QDataStream &ts, quint32 dataLen);
 	void handleEllipticalGradientTransparency(QDataStream &ts, quint32 dataLen);
 	void handleBitmapTransparency(QDataStream &ts, quint32 dataLen);
-	int  convertBlendMode(int val);
+	int  convertBlendMode(int val) const;
 	void handleSimpleGradientElliptical(QDataStream &ts, quint32 dataLen);
 	void handleMultiGradientElliptical(QDataStream &ts);
 	void handleMultiGradientSkewed(QDataStream &ts);
@@ -217,9 +217,9 @@ private:
 	void handlePage(QDataStream &ts);
 	void handleComplexColor(QDataStream &ts);
 	void handleColorRGB(QDataStream &ts);
-	double decodeColorComponent(quint32 data);
-	double decodeFixed16(quint32 data);
-	void readCoords(QDataStream &ts, double &x, double &y);
+	double decodeColorComponent(quint32 data) const;
+	double decodeFixed16(quint32 data) const;
+	void readCoords(QDataStream &ts, double &x, double &y) const;
 	void addToAtomic(quint32 dataLen, QDataStream &ts);
 	void addGraphicContext();
 	void popGraphicContext();
@@ -259,12 +259,12 @@ private:
 	};
 	struct XarGroup
 	{
-		int index;
-		int gcStackDepth;
-		bool clipping;
-		bool isBrush;
-		quint32 idNr;
-		PageItem* groupItem;
+		int index { 0 };
+		qsizetype gcStackDepth { 0 };
+		bool clipping { false };
+		bool isBrush { false };
+		quint32 idNr { 0 };
+		PageItem* groupItem { nullptr };
 	};
 	struct XarText
 	{
@@ -351,7 +351,7 @@ private:
 	FPointArray clipCoords;
 	FPointArray Coords;
 	FPointArray textPath;
-	MultiProgressDialog * progressDialog { nullptr };
+	MultiProgressDialog* progressDialog { nullptr };
 	ScribusDoc* m_Doc { nullptr };
 	Selection* tmpSel { nullptr };
 

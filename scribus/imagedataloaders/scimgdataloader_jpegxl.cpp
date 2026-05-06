@@ -1,34 +1,30 @@
-/*
-For general Scribus (>=1.3.2) copyright and licensing information please refer
-to the COPYING file provided with the program. Following this notice may exist
-a copyright and/or license notice that predates the release of Scribus 1.3.2
-for which a new license (GPL+exception) is in place.
+/***************************************************************************
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+***************************************************************************/
 
+/*
 Reference implementation with BSD style licenced code used from
 https://github.com/libjxl/libjxl/blob/main/examples/decode_oneshot.cc
-
-
 */
 
 #include <QFile>
 #include <QFileInfo>
 #include <QObject>
-#include <QImageIOHandler>
 
-#include <math.h>
-#include <fstream>
 #include <inttypes.h>
-#include <iterator>
-#include <string>
 #include <vector>
-
 
 #include <jxl/resizable_parallel_runner.h>
 #include <jxl/resizable_parallel_runner_cxx.h>
 
 #include "scconfig.h"
 #include "scimgdataloader_jpegxl.h"
-#include "scribuscore.h"
+#include "documentlogmanager.h"
 #include "exif.h"
 
 ScImgDataLoader_JPEGXL::ScImgDataLoader_JPEGXL()
@@ -49,7 +45,6 @@ void ScImgDataLoader_JPEGXL::loadEmbeddedProfile(const QString& fn, int /*page*/
 
 bool ScImgDataLoader_JPEGXL::preloadAlphaChannel(const QString& fn, int /*page*/, int res, bool& hasAlpha)
 {
-	// No support for alpha in jpeg pictures
 	initialize();
 	hasAlpha = false;
 	return true;
@@ -58,83 +53,124 @@ bool ScImgDataLoader_JPEGXL::preloadAlphaChannel(const QString& fn, int /*page*/
 bool ScImgDataLoader_JPEGXL::loadPicture(const QString& fn, int /*page*/, int res, bool thumbnail)
 {
 	if (!QFile::exists(fn))
+	{
+		m_message = DocumentLogManager::msgFileNotFound(fn);
+		m_msgType = errorMsg;
 		return false;
+	}
 	initialize();
+
 	std::vector<uint8_t> jxl;
 	if (!loadFile(fn.toLocal8Bit(), &jxl))
 	{
-		qDebug() << "Couldn't load " << fn;
+		m_message = QObject::tr("Failed to read file: %1").arg(fn);
+		m_msgType = errorMsg;
 		return false;
 	}
 
-	std::vector<float> pixels;
-	size_t xsize = 0, ysize = 0;
+	std::vector<uint8_t> pixels;
 	QByteArray icc_data;
-	if (!decodeJpegXlOneShot(jxl.data(), jxl.size(), &pixels, &xsize, &ysize, &icc_data))
+	JXLImageInfo imageInfo;
+	if (!decodeJpegXlOneShot(jxl.data(), jxl.size(), &pixels, &imageInfo, &icc_data))
 	{
-		qDebug() << "Error while decoding the jxl file " << fn;
+		// qDebug() << "Error while decoding the jxl file " << fn;
+		m_message = DocumentLogManager::msgDecoderError(fn, "JPEG XL");
+		m_msgType = errorMsg;
 		return false;
 	}
-	if (m_basicinfo.have_animation)
-	{
-		qDebug() << "JXL Animations not supported";
-		return false;
-	}
-	qDebug()<<"pixels size"<<pixels.size();
-	qDebug()<<"jxl size"<<jxl.size();
-//	bool loadalpha = (m_basicinfo.alpha_bits > 0) ? true : false;
 
-	qDebug()<<m_basicinfo.xsize;
-	qDebug()<<m_basicinfo.ysize;
-	qDebug()<<m_basicinfo.alpha_bits;
-	qDebug()<<m_basicinfo.orientation;
 	m_embeddedProfile =  icc_data;
-	JxlPixelFormat m_input_pixel_format;
-	m_input_pixel_format.endianness = JXL_NATIVE_ENDIAN;
-	m_input_pixel_format.align = 0;
-	m_input_pixel_format.num_channels = 4;
 
-
-	if (m_basicinfo.bits_per_sample > 8)
-	{ // high bit depth
-		m_input_pixel_format.data_type = JXL_TYPE_UINT16;
-//		m_buffer_size = 8 * (size_t)m_basicinfo.xsize * (size_t)m_basicinfo.ysize;
-		m_input_image_format = QImage::Format_RGBA64;
-
-//		if (loadalpha)
-//			m_target_image_format = QImage::Format_RGBA64;
-//		else
-//			m_target_image_format = QImage::Format_RGBX64;
-	}
-	else
-	{ // 8bit depth
-		m_input_pixel_format.data_type = JXL_TYPE_UINT8;
-//		m_buffer_size = 4 * (size_t)m_basicinfo.xsize * (size_t)m_basicinfo.ysize;
-		m_input_image_format = QImage::Format_RGBA8888;
-
-//		if (loadalpha)
-//			m_target_image_format = QImage::Format_ARGB32;
-//		else
-//			m_target_image_format = QImage::Format_RGB32;
-	}
-
-//	m_image = tmpImage;
-	m_image = QImage( xsize, ysize, m_input_image_format );
-
-	int i = 0;
-	for (int y = 0; y < m_image.height(); ++y)
+	if (imageInfo.bits_per_sample > 8)
 	{
-		QRgb *line = reinterpret_cast<QRgb*>(m_image.scanLine(y));
-		for (int x = 0; x < m_image.width(); ++x)
+		// 16-bit path
+		QImage::Format imageFormat;
+		if (imageInfo.channels == 3)
+			imageFormat = QImage::Format_RGBX64;  // No RGB48 in Qt, use RGBX64
+		else
+			imageFormat = QImage::Format_RGBA64;
+
+		m_image = QImage(imageInfo.width, imageInfo.height, imageFormat);
+
+		const uint16_t* src = reinterpret_cast<const uint16_t*>(pixels.data());
+		int i = 0;
+		for (int y = 0; y < m_image.height(); ++y)
 		{
-			QRgb &rgb = line[x];
-			rgb = qRgba(pixels.at(i)*255,
-						pixels.at(i+1)*255,
-						pixels.at(i+2)*255,
-						pixels.at(i+3)*255);
-			i+=4;
+			quint16* line = reinterpret_cast<quint16*>(m_image.scanLine(y));
+			if (imageInfo.channels == 3)
+			{
+				for (int x = 0; x < m_image.width(); ++x)
+				{
+					line[x * 4 + 0] = src[i + 0];  // R
+					line[x * 4 + 1] = src[i + 1];  // G
+					line[x * 4 + 2] = src[i + 2];  // B
+					line[x * 4 + 3] = 0xFFFF;      // A (fully opaque)
+					i += 3;
+				}
+			}
+			else
+			{
+				for (int x = 0; x < m_image.width(); ++x)
+				{
+					line[x * 4 + 0] = src[i + 0];  // R
+					line[x * 4 + 1] = src[i + 1];  // G
+					line[x * 4 + 2] = src[i + 2];  // B
+					line[x * 4 + 3] = src[i + 3];  // A
+					i += 4;
+				}
+			}
 		}
 	}
+	else
+	{
+		// 8-bit path
+		QImage::Format imageFormat;
+		if (imageInfo.channels == 3)
+			imageFormat = QImage::Format_RGB888;
+		else
+			imageFormat = QImage::Format_RGBA8888;
+
+		m_image = QImage(imageInfo.width, imageInfo.height, imageFormat);
+
+		int i = 0;
+		for (int y = 0; y < m_image.height(); ++y)
+		{
+			if (imageInfo.channels == 3)
+			{
+				uchar *line = m_image.scanLine(y);
+				for (int x = 0; x < m_image.width(); ++x)
+				{
+					line[x * 3 + 0] = pixels.at(i + 0); // R
+					line[x * 3 + 1] = pixels.at(i + 1); // G
+					line[x * 3 + 2] = pixels.at(i + 2); // B
+					i += 3;
+				}
+			}
+			else
+			{
+				uchar *line = m_image.scanLine(y);
+				for (int x = 0; x < m_image.width(); ++x)
+				{
+					line[x * 4 + 0] = pixels.at(i + 0); // R
+					line[x * 4 + 1] = pixels.at(i + 1); // G
+					line[x * 4 + 2] = pixels.at(i + 2); // B
+					line[x * 4 + 3] = pixels.at(i + 3); // A
+					i += 4;
+				}
+			}
+		}
+	}
+
+	// Convert to ARGB32 for Scribus
+	m_image = m_image.convertToFormat(QImage::Format_ARGB32);
+
+	m_imageInfoRecord.xres = 72;
+	m_imageInfoRecord.yres = 72;
+	m_imageInfoRecord.BBoxX = 0;
+	m_imageInfoRecord.BBoxH = m_image.height();
+	m_imageInfoRecord.colorspace = ColorSpaceRGB;
+	m_imageInfoRecord.type = ImageTypeOther;
+	m_imageInfoRecord.valid = true;
 
 	return true;
 }
@@ -171,36 +207,35 @@ bool ScImgDataLoader_JPEGXL::loadFile(const char *filename, std::vector<uint8_t>
 	out->resize(size);
 	size_t readsize = fread(out->data(), 1, size, file);
 	if (fclose(file) != 0)
-	{
 		return false;
-	}
 
 	return readsize == static_cast<size_t>(size);
 }
 
-bool ScImgDataLoader_JPEGXL::decodeJpegXlOneShot(const uint8_t *jxl, size_t size, std::vector<float> *pixels, size_t *xsize, size_t *ysize, QByteArray* icc_profile)
+bool ScImgDataLoader_JPEGXL::decodeJpegXlOneShot(const uint8_t *jxl, size_t size, std::vector<uint8_t> *pixels, JXLImageInfo* imageInfo, QByteArray* icc_profile)
 {
 	// Multi-threaded parallel runner.
 	auto runner = JxlResizableParallelRunnerMake(nullptr);
-
 	auto dec = JxlDecoderMake(nullptr);
-	if (JXL_DEC_SUCCESS !=
-		JxlDecoderSubscribeEvents(dec.get(), JXL_DEC_BASIC_INFO |
-												 JXL_DEC_COLOR_ENCODING |
-												 JXL_DEC_FULL_IMAGE)) {
-	  fprintf(stderr, "JxlDecoderSubscribeEvents failed\n");
-	  return false;
+
+	if (JXL_DEC_SUCCESS != JxlDecoderSubscribeEvents(dec.get(),
+		JXL_DEC_BASIC_INFO | JXL_DEC_COLOR_ENCODING | JXL_DEC_FULL_IMAGE))
+	{
+		m_message = QObject::tr("JPEG XL: JxlDecoderSubscribeEvents failed");
+		m_msgType = errorMsg;
+		return false;
 	}
 
 	if (JXL_DEC_SUCCESS != JxlDecoderSetParallelRunner(dec.get(),
-													   JxlResizableParallelRunner,
-													   runner.get())) {
-		fprintf(stderr, "JxlDecoderSetParallelRunner failed\n");
+		JxlResizableParallelRunner, runner.get()))
+	{
+		m_message = QObject::tr("JPEG XL: JxlDecoderSetParallelRunner failed");
+		m_msgType = errorMsg;
 		return false;
 	}
 
 	JxlBasicInfo info;
-	JxlPixelFormat format = {4, JXL_TYPE_FLOAT, JXL_NATIVE_ENDIAN, 0};
+	JxlPixelFormat format = {4, JXL_TYPE_UINT8, JXL_NATIVE_ENDIAN, 0};
 
 	JxlDecoderSetInput(dec.get(), jxl, size);
 	JxlDecoderCloseInput(dec.get());
@@ -211,110 +246,116 @@ bool ScImgDataLoader_JPEGXL::decodeJpegXlOneShot(const uint8_t *jxl, size_t size
 
 		if (status == JXL_DEC_ERROR)
 		{
-			fprintf(stderr, "Decoder error\n");
+			m_message = QObject::tr("JPEG XL: decoder error");
+			m_msgType = errorMsg;
 			return false;
 		}
 		else if (status == JXL_DEC_NEED_MORE_INPUT)
 		{
-			fprintf(stderr, "Error, already provided all input\n");
+			m_message = QObject::tr("JPEG XL: error, already provided all input");
+			m_msgType = errorMsg;
 			return false;
 		}
 		else if (status == JXL_DEC_BASIC_INFO)
 		{
 			if (JXL_DEC_SUCCESS != JxlDecoderGetBasicInfo(dec.get(), &info))
 			{
-				fprintf(stderr, "JxlDecoderGetBasicInfo failed\n");
+				m_message = QObject::tr("JPEG XL: JxlDecoderGetBasicInfo failed");
+				m_msgType = errorMsg;
 				return false;
 			}
-			*xsize = info.xsize;
-			*ysize = info.ysize;
-			JxlResizableParallelRunnerSetThreads(
-						runner.get(),
-						JxlResizableParallelRunnerSuggestThreads(info.xsize, info.ysize));
+
+			imageInfo->width = info.xsize;
+			imageInfo->height = info.ysize;
+			imageInfo->channels = (info.alpha_bits > 0) ? 4 : 3;
+
+			if (info.bits_per_sample > 8)
+			{
+				format.data_type = JXL_TYPE_UINT16;
+				imageInfo->bits_per_sample = 16;
+			}
+			else
+			{
+				format.data_type = JXL_TYPE_UINT8;
+				imageInfo->bits_per_sample = 8;
+			}
+
+			format.num_channels = imageInfo->channels;
+
+			JxlResizableParallelRunnerSetThreads(runner.get(), JxlResizableParallelRunnerSuggestThreads(info.xsize, info.ysize));
 		}
 		else if (status == JXL_DEC_COLOR_ENCODING)
 		{
-			// Get the ICC color profile of the pixel data
 			size_t icc_size;
-			if (JXL_DEC_SUCCESS !=
-					JxlDecoderGetICCProfileSize(
-						dec.get(), &format, JXL_COLOR_PROFILE_TARGET_DATA, &icc_size))
+			if (JXL_DEC_SUCCESS != JxlDecoderGetICCProfileSize(dec.get(),
+				JXL_COLOR_PROFILE_TARGET_DATA, &icc_size))
 			{
-				fprintf(stderr, "JxlDecoderGetICCProfileSize failed\n");
+				m_message = QObject::tr("JPEG XL: JxlDecoderGetICCProfileSize failed");
+				m_msgType = errorMsg;
 				return false;
 			}
 			icc_profile->resize(icc_size);
 			icc_profile->fill(0);
-			if (JXL_DEC_SUCCESS != JxlDecoderGetColorAsICCProfile(
-						dec.get(), &format,
-						JXL_COLOR_PROFILE_TARGET_DATA,
-						reinterpret_cast<uint8_t *>(icc_profile->data()), icc_profile->size()))
+			if (JXL_DEC_SUCCESS != JxlDecoderGetColorAsICCProfile(dec.get(),
+				JXL_COLOR_PROFILE_TARGET_DATA,
+				reinterpret_cast<uint8_t*>(icc_profile->data()), icc_profile->size()))
 			{
-				fprintf(stderr, "JxlDecoderGetColorAsICCProfile failed\n");
+				m_message = QObject::tr("JPEG XL: JxlDecoderGetColorAsICCProfile failed");
+				m_msgType = errorMsg;
 				return false;
 			}
 		}
 		else if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER)
 		{
 			size_t buffer_size;
-			if (JXL_DEC_SUCCESS !=
-					JxlDecoderImageOutBufferSize(dec.get(), &format, &buffer_size))
+			if (JXL_DEC_SUCCESS != JxlDecoderImageOutBufferSize(dec.get(), &format, &buffer_size))
 			{
-				fprintf(stderr, "JxlDecoderImageOutBufferSize failed\n");
+				m_message = QObject::tr("JPEG XL: JxlDecoderImageOutBufferSize failed");
+				m_msgType = errorMsg;
 				return false;
 			}
 
-			if (buffer_size != *xsize * *ysize * 16)
+			int bytesPerSample;
+			if (imageInfo->bits_per_sample == -1)
+				bytesPerSample = -1;
+			else
+				bytesPerSample = (imageInfo->bits_per_sample > 8) ? 2 : 1;
+			size_t expected = (size_t) imageInfo->width * imageInfo->height * imageInfo->channels * bytesPerSample;
+			if (buffer_size != expected)
 			{
-				fprintf(stderr, "Invalid out buffer size %" PRIu64 " %" PRIu64 "\n",
-						static_cast<uint64_t>(buffer_size),
-						static_cast<uint64_t>(*xsize * *ysize * 16));
+				QString msg = QString("Invalid out buffer size %1, expected %2").arg(static_cast<uint64_t>(buffer_size), static_cast<uint64_t>(expected));
+				m_message = msg;
+				m_msgType = errorMsg;
 				return false;
 			}
 
-			if (!QImageIOHandler::allocateImage(QSize(*xsize, *ysize), QImage::Format_RGBA8888, &tmpImage))
-					tmpImage = QImage(); // paranoia
-
-
-//			if (tmpImage.isNull())
-//			{
-//				qWarning("Memory cannot be allocated");
-//				return false;
-//			}
-			// correct to resize this?
-			int multiplier = (m_basicinfo.bits_per_sample > 8) ? 8 : 4;
-			pixels->resize(*xsize * *ysize * multiplier);
-			void* pixels_buffer = (void*)pixels->data();
-			size_t pixels_buffer_size = pixels->size() * sizeof(float);
-
-//			if (JXL_DEC_SUCCESS != JxlDecoderSetImageOutBuffer(dec.get(), &format,
-//															   tmpImage.bits(),
-//															   pixels_buffer_size))
+			pixels->resize(buffer_size);
 			if (JXL_DEC_SUCCESS != JxlDecoderSetImageOutBuffer(dec.get(), &format,
-															   pixels_buffer,
-															   pixels_buffer_size))
+				pixels->data(), pixels->size()))
 			{
-				fprintf(stderr, "JxlDecoderSetImageOutBuffer failed\n");
+				m_message = QObject::tr("JPEG XL: JxlDecoderSetImageOutBuffer failed");
+				m_msgType = errorMsg;
 				return false;
 			}
 		}
 		else if (status == JXL_DEC_FULL_IMAGE)
 		{
-			// Nothing to do. Do not yet return. If the image is an animation, more
-			// full frames may be decoded. This example only keeps the last one.
+			// For animations, take the first frame and stop
+			if (info.have_animation)
+			{
+				m_basicinfo = info;
+				return true;
+			}
 		}
 		else if (status == JXL_DEC_SUCCESS)
 		{
 			m_basicinfo = info;
-
-			// All decoding successfully finished.
-			// It's not required to call JxlDecoderReleaseInput(dec.get()) here since
-			// the decoder will be destroyed.
 			return true;
 		}
 		else
 		{
-			fprintf(stderr, "Unknown decoder status\n");
+			m_message = QObject::tr("JPEG XL: Unknown JXL decoder status");
+			m_msgType = errorMsg;
 			return false;
 		}
 	}

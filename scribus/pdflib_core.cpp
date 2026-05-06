@@ -84,8 +84,8 @@ for which a new license (GPL+exception) is in place.
 #include "util.h"
 #include "util_file.h"
 #include "util_formats.h"
-#include "util_math.h"
 #include "util_ghostscript.h"
+#include "util_math.h"
 
 #ifdef HAVE_OSG
 	#include "third_party/prc/exportPRC.h"
@@ -147,7 +147,10 @@ public:
 		if (firstUse || (strokeWidth != prevState.strokeWidth))
 		{
 			if (strokeWidth >= 0)
+			{
+				result += "[] 0 d\n";
 				result += FToStr(strokeWidth) + " w\n";
+			}
 		}
 
 		if (firstUse || (renderingMode != prevState.renderingMode))
@@ -504,7 +507,7 @@ public:
 		m_pathBuffer += "q\n";
 		m_pathBuffer += transformToStr(transform) + " cm\n";
 		m_pathBuffer += m_pdf->putColor(strokeColor().color, strokeColor().shade, false);
-		m_pathBuffer += FToStr(strokeWidth()) + " w\n";
+		m_pathBuffer += FToStr(strokeWidth()) + " w\n[] 0 d\n";
 		m_pathBuffer += FToStr(start.x()) + " " + FToStr(-start.y()) + " m\n";
 		m_pathBuffer += FToStr(end.x()) + " " + FToStr(-end.y()) + " l\n";
 		m_pathBuffer += "S\n";
@@ -2310,13 +2313,13 @@ void PDFLibCore::PDF_Begin_WriteUsedFonts(const QMap<QString, QMap<uint, QString
 	SCFonts& allFonts = PrefsManager::instance().appPrefs.fontPrefs.AvailFonts;
 	bool docUseAnnotations = doc.useAnnotations();
 
-	int a = 0;
+	int i = 0;
 	for (auto it = usedFonts.cbegin(); it != usedFonts.cend(); ++it)
 	{
 		ScFace& face(allFonts[it.key()]);
 		ScFace::FontFormat fformat = face.format();
 		PdfFont pdfFont;
-		QByteArray fontName = QByteArray("Fo") + Pdf::toPdf(a);
+		QByteArray fontName = QByteArray("Fo") + Pdf::toPdf(i);
 
 		// Control glyphs are not written to PDF so we can remove them safely,
 		// and we'd better do so otherwise sfnt::subsetFace might crash...
@@ -2325,7 +2328,7 @@ void PDFLibCore::PDF_Begin_WriteUsedFonts(const QMap<QString, QMap<uint, QString
 		if (usedGlyphs.count() <= 0)
 			continue;
 		
-		qDebug() << "pdf font" << it.key();
+		// qDebug() << "pdf font" << it.key();
 		if (Options.OutlineList.contains(it.key()))
 		{
 			pdfFont = PDF_WriteGlyphsAsXForms(fontName, face, usedGlyphs);
@@ -2380,24 +2383,24 @@ void PDFLibCore::PDF_Begin_WriteUsedFonts(const QMap<QString, QMap<uint, QString
 			}
 			pdfFont.usage = Used_in_Content;
 		}
-		a++;
-		QString meth;
+		i++;
+		QString method;
 		switch (pdfFont.method)
 		{
 			case Use_System:
-				meth = "Systemfont (no embedding)"; break;
+				method = "Systemfont (no embedding)"; break;
 			case Use_Embedded:
-				meth = "Embed"; break;
+				method = "Embed"; break;
 			case Use_Subset:
-				meth = "Subset"; break;
+				method = "Subset"; break;
 			case Use_Type3:
-				meth = "Subset as Type3 font"; break;
+				method = "Subset as Type3 font"; break;
 			case Use_XForm:
-				meth = "Outline (PDF XForm)"; break;
+				method = "Outline (PDF XForm)"; break;
 			default:
-				meth = "?"; break;
+				method = "?"; break;
 		}
-		qDebug() << pdfFont.name << "uses method" << meth << "and encoding" << pdfFont.encoding;
+		// qDebug() << pdfFont.name << "uses method" << method << "and encoding" << pdfFont.encoding;
 		UsedFontsP.insert(it.key(), pdfFont);
 	}
 
@@ -7039,10 +7042,8 @@ bool PDFLibCore::PDF_MeshGradientFill(QByteArray& output, const PageItem *c)
 	output = tmp;
 	if (tmpAddedColors.count() != 0)
 	{
-		for (int cd = 0; cd < tmpAddedColors.count(); cd++)
-		{
-			doc.PageColors.remove(tmpAddedColors[cd]);
-		}
+		for (const auto& tmpAddedColor : std::as_const(tmpAddedColors))
+			doc.PageColors.remove(tmpAddedColor);
 	}
 	return true;
 }
@@ -9822,7 +9823,13 @@ bool PDFLibCore::PDF_EmbeddedPDF(PageItem* c, const QString& fn, double sx, doub
 		PoDoFo::PdfError::EnableLogging(false);
 #endif
 		doc.reset(new PoDoFo::PdfMemDocument());
+#if defined(Q_OS_WIN32) && (PODOFO_VERSION >= PODOFO_MAKE_VERSION(0, 10, 0))
+		doc->Load(fn.toUtf8().data());
+#elif defined(Q_OS_WIN32)
+		doc->Load((const wchar_t*) fn.utf16());
+#else
 		doc->Load(fn.toLocal8Bit().data());
+#endif
 	}
 	catch (PoDoFo::PdfError& e)
 	{
@@ -11800,7 +11807,7 @@ void PDFLibCore::generateXMP(const QString& timeStamp)
 		contributor.appendChild(bag5);
 
 		QStringList contributors = doc.documentInfo().contrib().split(QRegularExpression(" *[;\n] *"), Qt::SkipEmptyParts);
-		for (const QString &contrib : contributors)
+		for (const QString &contrib : std::as_const(contributors))
 		{
 			QDomElement li5 = xmpDoc.createElement("rdf:li");
 			bag5.appendChild(li5);

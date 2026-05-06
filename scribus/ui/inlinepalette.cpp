@@ -129,7 +129,7 @@ void InlinePalette::handleContextMenue(QPoint p)
 	{
 		actItem = item->data(Qt::UserRole).toInt();
 		bool txFrame = false;
-		if (!m_doc->m_Selection->isEmpty())
+		if (m_doc->m_Selection->isNotEmpty())
 		{
 			PageItem* selItem = m_doc->m_Selection->itemAt(0);
 			if ((selItem->isTextFrame() || selItem->isTable()))
@@ -256,7 +256,7 @@ void InlinePalette::updateItemList()
 	InlineViewWidget->setWordWrap(true);
 	if (!m_doc)
 		return;
-	for (auto it = m_doc->FrameItems.begin(); it != m_doc->FrameItems.end(); ++it)
+	for (auto it = m_doc->FrameItems.cbegin(); it != m_doc->FrameItems.cend(); ++it)
 	{
 		PageItem *currItem = it.value();
 		QPixmap pm = QPixmap::fromImage(currItem->DrawObj_toImage(48));

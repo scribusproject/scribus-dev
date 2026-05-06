@@ -175,10 +175,7 @@ QImage IdmlPlug::readThumbnail(const QString& fName)
 			QImage tmpImage;
 			if (!Elements.isEmpty())
 			{
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				double xs = tmpSel->width();
 				double ys = tmpSel->height();
@@ -190,12 +187,14 @@ QImage IdmlPlug::readThumbnail(const QString& fName)
 			m_Doc->setLoading(false);
 			m_Doc->m_Selection->delaySignalsOff();
 			delete m_Doc;
+			m_Doc = nullptr;
 			return tmpImage;
 		}
 		QDir::setCurrent(CurDirP);
 		m_Doc->DoDrawing = true;
 		m_Doc->scMW()->setScriptRunning(false);
 		delete m_Doc;
+		m_Doc = nullptr;
 	}
 	return tmp;
 }
@@ -270,7 +269,10 @@ bool IdmlPlug::readColors(const QString& fileName, ColorList & colors)
 		colors = m_Doc->PageColors;
 		success = true;
 	}
+
 	delete m_Doc;
+	m_Doc = nullptr;
+
 	return success;
 }
 
@@ -321,7 +323,7 @@ bool IdmlPlug::importFile(const QString& fNameIn, const TransactionSettings& trS
 	docHeight = PrefsManager::instance().appPrefs.docSetupPrefs.pageHeight;
 	baseX = 0;
 	baseY = 0;
-	if (!interactive || (flags & LoadSavePlugin::lfInsertPage))
+	if (m_Doc && (!interactive || (flags & LoadSavePlugin::lfInsertPage)))
 	{
 		m_Doc->setPage(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false);
 		m_Doc->addPage(0);
@@ -329,18 +331,15 @@ bool IdmlPlug::importFile(const QString& fNameIn, const TransactionSettings& trS
 		baseX = 0;
 		baseY = 0;
 	}
-	else
+	else if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
 	{
-		if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
-		{
-			m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
-			ScCore->primaryMainWindow()->HaveNewDoc();
-			ret = true;
-			baseX = 0;
-			baseY = 0;
-			baseX = m_Doc->currentPage()->xOffset();
-			baseY = m_Doc->currentPage()->yOffset() + m_Doc->currentPage()->height() / 2.0;
-		}
+		m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
+		ScCore->primaryMainWindow()->HaveNewDoc();
+		ret = true;
+		baseX = 0;
+		baseY = 0;
+		baseX = m_Doc->currentPage()->xOffset();
+		baseY = m_Doc->currentPage()->yOffset() + m_Doc->currentPage()->height() / 2.0;
 	}
 	if (!ret && interactive)
 	{
@@ -387,10 +386,7 @@ bool IdmlPlug::importFile(const QString& fNameIn, const TransactionSettings& trS
 				if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 				{
 					m_Doc->m_Selection->delaySignalsOn();
-					for (int dre=0; dre<Elements.count(); ++dre)
-					{
-						m_Doc->m_Selection->addItem(Elements.at(dre), true);
-					}
+					m_Doc->m_Selection->addItems(Elements);
 					m_Doc->m_Selection->delaySignalsOff();
 					m_Doc->m_Selection->setGroupRect();
 					if (m_Doc->view() != nullptr)
@@ -403,10 +399,7 @@ bool IdmlPlug::importFile(const QString& fNameIn, const TransactionSettings& trS
 				m_Doc->DraggedElem = nullptr;
 				m_Doc->DragElements.clear();
 				m_Doc->m_Selection->delaySignalsOn();
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				ScElemMimeData* md = ScriXmlDoc::writeToMimeData(m_Doc, tmpSel);
 				m_Doc->itemSelection_DeleteItem(tmpSel);
@@ -1986,7 +1979,7 @@ QList<PageItem*> IdmlPlug::parseItemXML(const QDomElement& itElem, const QTransf
 							if (pointList.count() > 1)
 							{
 								GCoords.svgMoveTo(pointList[0].x(), pointList[0].y());
-								for (int a = 1; a < pointList.count(); a += 3)
+								for (qsizetype a = 1; a < pointList.count(); a += 3)
 								{
 									QPointF p1 = pointList[a];
 									QPointF p2 = pointList[a + 1];

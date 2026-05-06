@@ -57,7 +57,7 @@ void PageSize::init(const QString& sizeName)
 	//Build based on untranslated key value
 	if (m_pageSizeList.contains(sizeName))
 	{
-		PageSizeInfoMap::Iterator it = m_pageSizeList.find(sizeName);
+		auto it = m_pageSizeList.constFind(sizeName);
 		m_pageSizeName = it.key();
 		m_width = it.value().width;
 		m_height = it.value().height;
@@ -68,8 +68,7 @@ void PageSize::init(const QString& sizeName)
 	}
 	else //build based on translated value.
 	{
-		PageSizeInfoMap::Iterator it;
-		for (it = m_pageSizeList.begin(); it != m_pageSizeList.end() && !valuesSet; ++it)
+		for (auto it = m_pageSizeList.cbegin(); it != m_pageSizeList.cend() && !valuesSet; ++it)
 		{
 			if (sizeName == it.value().trSizeName)
 			{

@@ -62,6 +62,7 @@ PreferencesDialog::PreferencesDialog(QWidget* parent, ApplicationPrefs& prefsDat
 	}
 	if (!m_Doc)
 	{
+		prefs_Experimental = new Prefs_Experimental(prefsStackWidget, m_Doc);
 		prefs_ExternalTools = new Prefs_ExternalTools(prefsStackWidget, m_Doc);
 		prefs_ImageCache = new Prefs_ImageCache(prefsStackWidget, m_Doc);
 		prefs_KeyboardShortcuts = new Prefs_KeyboardShortcuts(prefsStackWidget, m_Doc);
@@ -70,9 +71,8 @@ PreferencesDialog::PreferencesDialog(QWidget* parent, ApplicationPrefs& prefsDat
 		prefs_Paths = new Prefs_Paths(prefsStackWidget, m_Doc);
 		prefs_Plugins = new Prefs_Plugins(prefsStackWidget, m_Doc);
 		prefs_Scrapbook = new Prefs_Scrapbook(prefsStackWidget, m_Doc);
-//		prefs_Spelling = new Prefs_Spelling(prefsStackWidget, m_Doc);
+		prefs_Spelling = new Prefs_Spelling(prefsStackWidget, m_Doc);
 		prefs_UserInterface = new Prefs_UserInterface(prefsStackWidget, m_Doc);
-		prefs_Experimental = new Prefs_Experimental(prefsStackWidget, m_Doc);
 	}
 	createStackWidgetList();
 	if (!m_Doc)
@@ -117,14 +117,13 @@ void PreferencesDialog::setupGui()
 {
 	for (auto it = stackDataList.cbegin(), end = stackDataList.cend(); it != end; ++it)
 	{
-		if ((*it).prefsPane == nullptr)
+		if (it->prefsPane == nullptr)
 			continue;
 
-		(*it).prefsPane->restoreDefaults(&localPrefs);
+		if (it->prefsPane == prefs_ColorManagement)
+			prefs_ColorManagement->setProfiles(&localPrefs, &ScCore->InputProfiles, &ScCore->InputProfilesCMYK, &ScCore->PrinterProfiles, &ScCore->MonitorProfiles);
+		it->prefsPane->restoreDefaults(&localPrefs);
 	}
-
-	if (prefs_ColorManagement)
-		prefs_ColorManagement->setProfiles(&localPrefs, &ScCore->InputProfiles, &ScCore->InputProfilesCMYK, &ScCore->PrinterProfiles, &ScCore->MonitorProfiles);
 
 	searchField->setFocus();
 }
@@ -214,6 +213,11 @@ void PreferencesDialog::createStackWidgetList()
 	ptd.forPrefs = true;
 	ptd.forDoc = true;
 	ptd.prefsPane = dynamic_cast<Prefs_Pane*>(prefs_Hyphenator);
+	stackDataList.append(ptd);
+
+	ptd.forPrefs = true;
+	ptd.forDoc = false;
+	ptd.prefsPane = dynamic_cast<Prefs_Pane*>(prefs_Spelling);
 	stackDataList.append(ptd);
 
 	ptd.forPrefs = true;

@@ -41,7 +41,7 @@ public:
 	\retval EPSPlug plugin
 	*/
 	CdrPlug( ScribusDoc* doc, int flags );
-	~CdrPlug();
+	~CdrPlug() override;
 
 	/*!
 	\author Franz Schmid
@@ -53,7 +53,7 @@ public:
 	\param showProgress if progress must be displayed
 	\retval bool true if import was ok
 	 */
-	bool import(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
+	bool importFile(const QString& fn, const TransactionSettings& trSettings, int flags, bool showProgress = true);
 	QImage readThumbnail(const QString& fn);
 
 private:

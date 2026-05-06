@@ -36,9 +36,9 @@ class CWDialog : public QDialog, Ui::CWDialog
 		~CWDialog();
 	private:
 		/** \brief Configuration structure */
-		PrefsContext* prefs;
+		PrefsContext* prefs { nullptr };
 		//! \brief a parent doc reference
-		ScribusDoc* m_Doc;
+		ScribusDoc* m_Doc { nullptr };
 
 		/** \brief Draws a strange colorful things as preview of the color schema.
 		User can see what will see a person with selected kind of color blindness.
@@ -50,7 +50,7 @@ class CWDialog : public QDialog, Ui::CWDialog
 		\param c input color. QColor from sample list.
 		\retval QColor It returns c for chosen defect filter.
 		*/
-		QColor computeDefect(QColor c);
+		QColor computeDefect(QColor c) const;
 
 		/** \brief It fills colors into list view.
 		It takes colors from ColorWheel widget. */
@@ -94,7 +94,7 @@ class CWDialog : public QDialog, Ui::CWDialog
 		void processColors(int index, bool updateSpins = true);
 
 		//! \brief Get a #hhssvv string for given ScColor
-		QString getHexHsv(const ScColor& c);
+		QString getHexHsv(const ScColor& c) const;
 
 	private slots:
 		void colorspaceTab_currentChanged(int);

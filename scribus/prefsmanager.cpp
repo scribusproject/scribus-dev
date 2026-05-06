@@ -109,7 +109,7 @@ void PrefsManager::setup()
 	setupPreferencesLocation();
 
 	copyOldAppConfigAndData();
-	prefsFile = new PrefsFile( m_prefsLocation + "prefs170.xml" );
+	prefsFile = new PrefsFile( m_prefsLocation + "prefs172.xml" );
 
 	//<<CB TODO Reset keyboard shortcuts of all 1.3 users as too many
 	//	 have conflicts if they don't nuke their settings.
@@ -335,6 +335,10 @@ void PrefsManager::initDefaults()
 	appPrefs.hyphPrefs.ignoredWords.clear();
 	appPrefs.hyphPrefs.Automatic = true;
 	appPrefs.hyphPrefs.AutoCheck = false;
+	appPrefs.spellCheckPrefs.liveSpellCheckEnabled = true;
+	appPrefs.spellCheckPrefs.debounceDelay = 500;
+	appPrefs.spellCheckPrefs.maxSuggestions = 10;
+	appPrefs.spellCheckPrefs.showMisspeltIndicator = true;
 	appPrefs.docSetupPrefs.AutoSave = true;
 	appPrefs.docSetupPrefs.AutoSaveTime = 600000;
 	appPrefs.docSetupPrefs.AutoSaveCount = 1;
@@ -455,6 +459,7 @@ void PrefsManager::initDefaults()
 	pageS.pageNames.append(CommonStrings::pageLocRight);
 	appPrefs.pageSets.append(pageS);
 	appPrefs.docSetupPrefs.pagePositioning = singlePage;
+	appPrefs.docSetupPrefs.bindingDirection = 0;
 	appPrefs.fontPrefs.askBeforeSubstitute = true;
 	appPrefs.miscPrefs.haveStylePreview = true;
 	appPrefs.miscPrefs.saveEmergencyFile = true;
@@ -561,7 +566,7 @@ void PrefsManager::applyLoadedShortCuts()
 {
 	const auto &actions = ScCore->primaryMainWindow()->scrActions;
 
-	for (auto it = appPrefs.keyShortcutPrefs.KeyActions.begin(); it != appPrefs.keyShortcutPrefs.KeyActions.end(); ++it)
+	for (auto it = appPrefs.keyShortcutPrefs.KeyActions.cbegin(); it != appPrefs.keyShortcutPrefs.KeyActions.cend(); ++it)
 	{
 		if (it.value().actionName.isEmpty())
 			continue;
@@ -779,7 +784,7 @@ void PrefsManager::setupPreferencesLocation()
 
 void PrefsManager::copyOldAppConfigAndData()
 {
-	if (QFile::exists(m_prefsLocation + "scribus170.rc") && QFile::exists(m_prefsLocation + "prefs170.xml"))
+	if (QFile::exists(m_prefsLocation + "scribus172.rc") && QFile::exists(m_prefsLocation + "prefs172.xml"))
 		return;
 
 	//Move to using the ScPaths default prefs location/scribus.* from ~/.scribus.*
@@ -857,7 +862,7 @@ void PrefsManager::copyOldAppConfigAndData()
 	//Now make copies for 1.7.0 use and leave the old ones alone for <1.7.0 usage
 	QString prefs150[5];
 	QString prefs160[5];
-	QString prefs170[5];
+	QString prefs172[5];
 
 	prefs150[0] = QDir::toNativeSeparators(m_prefsLocation + "scribus150.rc");
 	prefs150[1] = QDir::toNativeSeparators(m_prefsLocation + "scrap150.scs");
@@ -871,27 +876,28 @@ void PrefsManager::copyOldAppConfigAndData()
 	prefs160[3] = QDir::toNativeSeparators(m_prefsLocation + "scripter160.rc");
 	prefs160[4] = QDir::toNativeSeparators(m_prefsLocation + "checkfonts160.xml");
 
-	prefs170[0] = QDir::toNativeSeparators(m_prefsLocation + "scribus170.rc");
-	prefs170[1] = QDir::toNativeSeparators(m_prefsLocation + "scrap170.scs");
-	prefs170[2] = QDir::toNativeSeparators(m_prefsLocation + "prefs170.xml");
-	prefs170[3] = QDir::toNativeSeparators(m_prefsLocation + "scripter170.rc");
-	prefs170[4] = QDir::toNativeSeparators(m_prefsLocation + "checkfonts170.xml");
+	// Skip 170 prefs completely due to potential corruption by 1.7.1
+	prefs172[0] = QDir::toNativeSeparators(m_prefsLocation + "scribus172.rc");
+	prefs172[1] = QDir::toNativeSeparators(m_prefsLocation + "scrap172.scs");
+	prefs172[2] = QDir::toNativeSeparators(m_prefsLocation + "prefs172.xml");
+	prefs172[3] = QDir::toNativeSeparators(m_prefsLocation + "scripter172.rc");
+	prefs172[4] = QDir::toNativeSeparators(m_prefsLocation + "checkfonts172.xml");
 
 	bool existsPrefs150[5];
 	bool existsPrefs160[5];
-	bool existsPrefs170[5];
+	bool existsPrefs172[5];
 	for (uint i = 0; i < 5; ++i)
 	{
 		existsPrefs150[i] = QFile::exists(prefs150[i]);
 		existsPrefs160[i] = QFile::exists(prefs160[i]);
-		existsPrefs170[i] = QFile::exists(prefs170[i]);
+		existsPrefs172[i] = QFile::exists(prefs172[i]);
 	}
 
-	if (existsPrefs170[0] && existsPrefs170[2])
+	if (existsPrefs172[0] && existsPrefs172[2])
 		return;
 
 	//Only check for these three as they will be autocreated if they don't exist.
-	if ((existsPrefs160[0] && !existsPrefs170[0]) || (existsPrefs160[2] && !existsPrefs170[2]))
+	if ((existsPrefs160[0] && !existsPrefs172[0]) || (existsPrefs160[2] && !existsPrefs172[2]))
 	{
 		// Now always return false
 		// retVal = true; // converting from 1.2 prefs
@@ -910,8 +916,8 @@ void PrefsManager::copyOldAppConfigAndData()
 			{
 				for (uint i = 0; i < 5; ++i)
 				{
-					if (existsPrefs160[i] && !existsPrefs170[i])
-						copyFile(prefs160[i], prefs170[i]);
+					if (existsPrefs160[i] && !existsPrefs172[i])
+						copyFile(prefs160[i], prefs172[i]);
 				}
 			}
 			if (splashShown)
@@ -922,15 +928,15 @@ void PrefsManager::copyOldAppConfigAndData()
 	{
 		for (uint i = 0; i < 5; ++i)
 		{
-			if (existsPrefs150[i] && !existsPrefs170[i])
-				copyFile(prefs150[i], prefs170[i]);
+			if (existsPrefs150[i] && !existsPrefs172[i])
+				copyFile(prefs150[i], prefs172[i]);
 		}
 	}
 }
 
 void PrefsManager::readPrefs()
 {
-	QString prefsFile(m_prefsLocation + "scribus170.rc");
+	QString prefsFile(m_prefsLocation + "scribus172.rc");
 	if (!QFile::exists(prefsFile))
 		return;
 	if (!readPref(prefsFile))
@@ -1003,7 +1009,7 @@ void PrefsManager::savePrefs()
 	}
 	ScCore->primaryMainWindow()->getDefaultPrinter(appPrefs.printerPrefs.PrinterName, appPrefs.printerPrefs.PrinterFile, appPrefs.printerPrefs.PrinterCommand);
 	savePrefsXML();
-	if (!writePref(m_prefsLocation + "scribus170.rc"))
+	if (!writePref(m_prefsLocation + "scribus172.rc"))
 		alertSavePrefsFailed();
 	emit prefsChanged();
 }
@@ -1291,7 +1297,7 @@ void PrefsManager::setKeyEntry(const QString& actName, const QString& cleanMenuT
 	Keys ke;
 	if (!actName.isEmpty())
 	{
-		if (ScCore->primaryMainWindow()->scrActions[actName])
+		if (ScCore->primaryMainWindow()->scrActions.value(actName))
 		{
 			ke.actionName = actName;
 			ke.keySequence = keyseq;
@@ -1385,6 +1391,7 @@ bool PrefsManager::writePref(const QString& filePath)
 	deDocumentSetup.setAttribute("MarginRight", ScCLocale::toQStringC(appPrefs.docSetupPrefs.margins.right()));
 	deDocumentSetup.setAttribute("MarginPreset", appPrefs.docSetupPrefs.marginPreset);
 	deDocumentSetup.setAttribute("PagePositioning", appPrefs.docSetupPrefs.pagePositioning);
+	deDocumentSetup.setAttribute("BindingDirection", appPrefs.docSetupPrefs.bindingDirection);
 	deDocumentSetup.setAttribute("AutoSave", static_cast<int>(appPrefs.docSetupPrefs.AutoSave));
 	deDocumentSetup.setAttribute("AutoSaveTime", appPrefs.docSetupPrefs.AutoSaveTime);
 	deDocumentSetup.setAttribute("AutoSaveCount", appPrefs.docSetupPrefs.AutoSaveCount);
@@ -1496,7 +1503,7 @@ bool PrefsManager::writePref(const QString& filePath)
 			elem.appendChild(fn);
 		}
 	}
-	for (auto itfsu = appPrefs.fontPrefs.GFontSub.begin(); itfsu != appPrefs.fontPrefs.GFontSub.end(); ++itfsu)
+	for (auto itfsu = appPrefs.fontPrefs.GFontSub.cbegin(); itfsu != appPrefs.fontPrefs.GFontSub.cend(); ++itfsu)
 	{
 		QDomElement fosu = docu.createElement("Substitute");
 		fosu.setAttribute("Name", itfsu.key());
@@ -1630,7 +1637,7 @@ bool PrefsManager::writePref(const QString& filePath)
 
 
 	QDomElement pageSetAttr = docu.createElement("PageSets");
-	for (const PageSet& pageSet : appPrefs.pageSets)
+	for (const PageSet& pageSet : std::as_const(appPrefs.pageSets))
 	{
 		QDomElement pgst = docu.createElement("Set");
 		pgst.setAttribute("Name", pageSet.Name);
@@ -1653,8 +1660,8 @@ bool PrefsManager::writePref(const QString& filePath)
 	dcPreflightVerifier.setAttribute("ShowNonPrintingLayerErrors", appPrefs.verifierPrefs.showNonPrintingLayerErrors);
 	elem.appendChild(dcPreflightVerifier);
 
-	auto itcpend = appPrefs.verifierPrefs.checkerPrefsList.end();
-	for (auto itcp = appPrefs.verifierPrefs.checkerPrefsList.begin(); itcp != itcpend; ++itcp)
+	auto itcpend = appPrefs.verifierPrefs.checkerPrefsList.cend();
+	for (auto itcp = appPrefs.verifierPrefs.checkerPrefsList.cbegin(); itcp != itcpend; ++itcp)
 	{
 		QDomElement dcVerifierProfile = docu.createElement("VerifierProfile");
 		const CheckerPrefs& checkerProfile = itcp.value();
@@ -1779,13 +1786,20 @@ bool PrefsManager::writePref(const QString& filePath)
 		hyElem.setAttribute("Hyphenated", hyit.value());
 		rde.appendChild(hyElem);
 	}
-	for (const auto& hyWord : appPrefs.hyphPrefs.ignoredWords)
+	for (const auto& hyWord : std::as_const(appPrefs.hyphPrefs.ignoredWords))
 	{
 		QDomElement hyElem2 = docu.createElement("Ignore");
 		hyElem2.setAttribute("Word", hyWord);
 		rde.appendChild(hyElem2);
 	}
 	elem.appendChild(rde);
+
+	QDomElement ssp = docu.createElement("SpellCheck");
+	ssp.setAttribute("LiveSpellCheckEnabled", static_cast<int>(appPrefs.spellCheckPrefs.liveSpellCheckEnabled));
+	ssp.setAttribute("ShowMisspeltIndicator", static_cast<int>(appPrefs.spellCheckPrefs.showMisspeltIndicator));
+	ssp.setAttribute("MaxSuggestions", appPrefs.spellCheckPrefs.maxSuggestions);
+	ssp.setAttribute("LiveCheckDebounceDelay", appPrefs.spellCheckPrefs.debounceDelay);
+	elem.appendChild(ssp);
 
 	for (int i = 0; i < appPrefs.uiPrefs.RecentDocs.count(); ++i)
 	{
@@ -1868,7 +1882,7 @@ bool PrefsManager::writePref(const QString& filePath)
 	pdf.setAttribute("openAfterExport", static_cast<int>(appPrefs.pdfPrefs.openAfterExport));
 	pdf.setAttribute("PageLayout", appPrefs.pdfPrefs.PageLayout);
 	pdf.setAttribute("OpenAction", appPrefs.pdfPrefs.openAction);
-	for (auto itlp = appPrefs.pdfPrefs.LPISettings.begin(); itlp != appPrefs.pdfPrefs.LPISettings.end(); ++itlp)
+	for (auto itlp = appPrefs.pdfPrefs.LPISettings.cbegin(); itlp != appPrefs.pdfPrefs.LPISettings.cend(); ++itlp)
 	{
 		QDomElement pdf4 = docu.createElement("LPI");
 		pdf4.setAttribute("Color", itlp.key());
@@ -1880,7 +1894,7 @@ bool PrefsManager::writePref(const QString& filePath)
 	elem.appendChild(pdf);
 
 	QDomElement docItemAttrs = docu.createElement("DefaultItemAttributes");
-	for (const auto& objAttr : appPrefs.itemAttrPrefs.defaultItemAttributes)
+	for (const auto& objAttr : std::as_const(appPrefs.itemAttrPrefs.defaultItemAttributes))
 	{
 		QDomElement itemAttr = docu.createElement("ItemAttribute");
 		itemAttr.setAttribute("Name", objAttr.name);
@@ -1895,7 +1909,7 @@ bool PrefsManager::writePref(const QString& filePath)
 	elem.appendChild(docItemAttrs);
 
 	QDomElement tocElem = docu.createElement("TablesOfContents");
-	for (const auto& tocSetup : appPrefs.tocPrefs.defaultToCSetups)
+	for (const auto& tocSetup : std::as_const(appPrefs.tocPrefs.defaultToCSetups))
 	{
 		QDomElement tocsetup = docu.createElement("TableOfContents");
 		tocsetup.setAttribute("Name", tocSetup.name);
@@ -2080,6 +2094,7 @@ bool PrefsManager::readPref(const QString& filePath)
 			appPrefs.docSetupPrefs.margins.setRight(ScCLocale::toDoubleC(dc.attribute("MarginRight"), 9.0));
 			appPrefs.docSetupPrefs.marginPreset   = dc.attribute("MarginPreset", "0").toInt();
 			appPrefs.docSetupPrefs.pagePositioning	= dc.attribute("PagePositioning", "0").toInt();
+			appPrefs.docSetupPrefs.bindingDirection	= dc.attribute("BindingDirection", "0").toInt();
 			appPrefs.docSetupPrefs.AutoSave	  = static_cast<bool>(dc.attribute("AutoSave", "0").toInt());
 			appPrefs.docSetupPrefs.AutoSaveTime  = dc.attribute("AutoSaveTime", "600000").toInt();
 			appPrefs.docSetupPrefs.AutoSaveCount  = dc.attribute("AutoSaveCount", "1").toInt();
@@ -2611,6 +2626,14 @@ bool PrefsManager::readPref(const QString& filePath)
 				hyNode = hyNode.nextSibling();
 			}
 		}
+		if (dc.tagName() == "SpellCheck")
+		{
+			appPrefs.spellCheckPrefs.liveSpellCheckEnabled = static_cast<bool>(dc.attribute("LiveSpellCheckEnabled", "1").toInt());
+			appPrefs.spellCheckPrefs.showMisspeltIndicator = static_cast<bool>(dc.attribute("ShowMisspeltIndicator", "1").toInt());
+			appPrefs.spellCheckPrefs.maxSuggestions = dc.attribute("MaxSuggestions").toInt();
+			appPrefs.spellCheckPrefs.debounceDelay = dc.attribute("LiveCheckDebounceDelay").toInt();
+		}
+
 		if (dc.tagName() == "Fonts")
 		{
 			appPrefs.fontPrefs.askBeforeSubstitute = static_cast<bool>(dc.attribute("AutomaticSubstitution", "1").toInt());
@@ -2794,7 +2817,7 @@ bool PrefsManager::readPref(const QString& filePath)
 			appPrefs.activePageSizes = QString(dc.attribute("Names", "")).split(separator);
 
 			// check if page sizes existing
-			for (const auto& item : appPrefs.activePageSizes)
+			for (const auto& item : std::as_const(appPrefs.activePageSizes))
 			{
 				PageSize ps(item);
 				if (ps.name() != CommonStrings::customPageSize)

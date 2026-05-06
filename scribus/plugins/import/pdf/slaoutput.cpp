@@ -7,6 +7,7 @@ for which a new license (GPL+exception) is in place.
 
 #include "slaoutput.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 
@@ -122,7 +123,10 @@ LinkImportData::LinkImportData(Object *actionObj)
 		return;
 
 	Object obj3 = getFileSpecNameForPlatform(&obj1);
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 01, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 04, 0)
+	if (!obj3.isNull())
+		fileName = make_unique<GooString>(obj3.getString());
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 01, 0)
 	if (!obj3.isNull())
 		fileName = obj3.getString()->copy();
 #else
@@ -158,14 +162,20 @@ void AnoOutputDev::stroke(GfxState *state)
 	currColorStroke = getColor(state->getStrokeColorSpace(), state->getStrokeColor(), &shade);
 }
 
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 04, 0)
+void AnoOutputDev::drawString(GfxState* state, const std::string& s)
+#else
 void AnoOutputDev::drawString(GfxState *state, const GooString *s)
+#endif
 {
 	int shade = 100;
 	currColorText = getColor(state->getFillColorSpace(), state->getFillColor(), &shade);
 	fontSize = state->getFontSize();
 	if (state->getFont() && state->getFont()->getName())
 		fontName.reset(new GooString(state->getFont()->getName().value()));
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 01, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 04, 0)
+	itemText = std::make_unique<GooString>(s);
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 01, 0)
 	itemText = s->copy();
 #else
 	itemText.reset(s->copy());
@@ -883,7 +893,11 @@ bool SlaOutputDev::handleWidgetAnnot(Annot* annota, double xCoor, double yCoor, 
 					const Ref ref = childRef.getRef();
 					radList.append(ref.num);
 				}
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 3, 0)
+				QString tmTxt = UnicodeParsedString(annota->getUniqueName());
+#else
 				QString tmTxt = UnicodeParsedString(annota->getName());
+#endif
 				m_radioMap.insert(tmTxt, radList);
 			}
 		}
@@ -1267,7 +1281,7 @@ void SlaOutputDev::endPage()
 			{
 				if (m_radioButtons.contains(refList[a]))
 				{
-					m_tmpSel->addItem(m_radioButtons[refList[a]], true);
+					m_tmpSel->addItem(m_radioButtons[refList[a]]);
 					m_Elements->removeAll(m_radioButtons[refList[a]]);
 				}
 			}
@@ -1304,7 +1318,7 @@ void SlaOutputDev::restoreState(GfxState *state)
 				m_tmpSel->clear();
 				for (int dre = 0; dre < gElements.Items.count(); ++dre)
 				{
-					m_tmpSel->addItem(gElements.Items.at(dre), true);
+					m_tmpSel->addItem(gElements.Items.at(dre));
 					m_Elements->removeAll(gElements.Items.at(dre));
 				}
 				PageItem *ite = m_doc->groupObjectsSelection(m_tmpSel);
@@ -1407,7 +1421,7 @@ void SlaOutputDev::endTransparencyGroup(GfxState *state)
 	{
 		for (int dre = 0; dre < gElements.Items.count(); ++dre)
 		{
-			m_tmpSel->addItem(gElements.Items.at(dre), true);
+			m_tmpSel->addItem(gElements.Items.at(dre));
 			m_Elements->removeAll(gElements.Items.at(dre));
 		}
 		PageItem *ite = m_doc->groupObjectsSelection(m_tmpSel);
@@ -1436,7 +1450,7 @@ void SlaOutputDev::endTransparencyGroup(GfxState *state)
 	PageItem *ite;
 	for (int dre = 0; dre < gElements.Items.count(); ++dre)
 	{
-		m_tmpSel->addItem(gElements.Items.at(dre), true);
+		m_tmpSel->addItem(gElements.Items.at(dre));
 		m_Elements->removeAll(gElements.Items.at(dre));
 	}
 	if ((gElements.Items.count() != 1) || (gElements.isolated))
@@ -1534,7 +1548,7 @@ void SlaOutputDev::eoClip(GfxState *state)
 
 void SlaOutputDev::adjustClip(GfxState *state, Qt::FillRule fillRule)
 {
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	QString output = convertPath(state->getPath());
 	if (output.isEmpty())
@@ -1562,7 +1576,7 @@ void SlaOutputDev::adjustClip(GfxState *state, Qt::FillRule fillRule)
 void SlaOutputDev::stroke(GfxState *state)
 {
 //	qDebug() << "Stroke";
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	double xCoor = m_doc->currentPage()->xOffset();
 	double yCoor = m_doc->currentPage()->yOffset();
@@ -1670,8 +1684,7 @@ void SlaOutputDev::eoFill(GfxState *state)
 
 void SlaOutputDev::createFillItem(GfxState *state, Qt::FillRule fillRule)
 {
-	const double *ctm;
-	ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	double xCoor = m_doc->currentPage()->xOffset();
 	double yCoor = m_doc->currentPage()->yOffset();
@@ -1798,7 +1811,7 @@ bool SlaOutputDev::axialShadedFill(GfxState *state, GfxAxialShading *shading, do
 		out = intersection(m_graphicStack.top().clipPath, out);
 		crect = out.boundingRect();
 	}
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	FPointArray gr;
 	gr.addPoint(GrStartX, GrStartY);
@@ -1937,7 +1950,7 @@ bool SlaOutputDev::radialShadedFill(GfxState *state, GfxRadialShading *shading, 
 	double GrFocalY = y1;
 	GrEndX = GrFocalX + r1;
 	GrEndY = GrFocalY;
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	FPointArray gr;
 	gr.addPoint(GrStartX, GrStartY);
@@ -2022,7 +2035,7 @@ bool SlaOutputDev::gouraudTriangleShadedFill(GfxState *state, GfxGouraudTriangle
 	output += QString("Z");
 	m_pathIsClosed = true;
 	m_coords = output;
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	const auto& graphicState = m_graphicStack.top();
 	int z = m_doc->itemAdd(PageItem::Polygon, PageItem::Rectangle, xCoor + crect.x(), yCoor + crect.y(), crect.width(), crect.height(), 0, graphicState.fillColor, CommonStrings::None);
@@ -2103,7 +2116,7 @@ bool SlaOutputDev::patchMeshShadedFill(GfxState *state, GfxPatchMeshShading *sha
 	output += QString("Z");
 	m_pathIsClosed = true;
 	m_coords = output;
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	const auto& graphicState = m_graphicStack.top();
 	int z = m_doc->itemAdd(PageItem::Polygon, PageItem::Rectangle, xCoor + crect.x(), yCoor + crect.y(), crect.width(), crect.height(), 0, graphicState.fillColor, CommonStrings::None);
@@ -2264,7 +2277,7 @@ bool SlaOutputDev::tilingPatternFill(GfxState *state, Gfx* /*gfx*/, Catalog *cat
 	box.x2 = bbox[2];
 	box.y2 = bbox[3];
 
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	QTransform mm(mat[0], mat[1], mat[2], mat[3], mat[4], mat[5]);
 	QTransform mmx = mm * m_ctm;
@@ -2284,7 +2297,7 @@ bool SlaOutputDev::tilingPatternFill(GfxState *state, Gfx* /*gfx*/, Catalog *cat
 	{
 		for (int dre = 0; dre < gElements.Items.count(); ++dre)
 		{
-			m_doc->m_Selection->addItem(gElements.Items.at(dre), true);
+			m_doc->m_Selection->addItem(gElements.Items.at(dre));
 			m_Elements->removeAll(gElements.Items.at(dre));
 		}
 		m_doc->itemSelection_FlipV();
@@ -2372,7 +2385,11 @@ void SlaOutputDev::drawImageMask(GfxState *state, Object *ref, Stream *str, int 
 {
 //	qDebug() << "Draw Image Mask";
 	auto imgStr = std::make_unique<ImageStream>(str, width, 1, 1);
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	bool rewindDone = imgStr->rewind();
+	if (!rewindDone)
+		return;
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
 	bool resetDone = imgStr->reset();
 	if (!resetDone)
 		return;
@@ -2453,7 +2470,11 @@ void SlaOutputDev::drawSoftMaskedImage(GfxState *state, Object *ref, Stream *str
 {
 //	qDebug() << "SlaOutputDev::drawSoftMaskedImage Masked Image Components" << colorMap->getNumPixelComps();
 	auto imgStr = std::make_unique<ImageStream>(str, width, colorMap->getNumPixelComps(), colorMap->getBits());
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	bool rewindDone = imgStr->rewind();
+	if (!rewindDone)
+		return;
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
 	bool resetDone = imgStr->reset();
 	if (!resetDone)
 		return;
@@ -2475,7 +2496,11 @@ void SlaOutputDev::drawSoftMaskedImage(GfxState *state, Object *ref, Stream *str
 		return;
 
 	auto mskStr = std::make_unique<ImageStream>(maskStr, maskWidth, maskColorMap->getNumPixelComps(), maskColorMap->getBits());
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	bool mskRewindDone = mskStr->rewind();
+	if (!mskRewindDone)
+		return;
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
 	bool mskResetDone = mskStr->reset();
 	if (!mskResetDone)
 		return;
@@ -2537,7 +2562,11 @@ void SlaOutputDev::drawMaskedImage(GfxState *state, Object *ref, Stream *str,  i
 {
 //	qDebug() << "SlaOutputDev::drawMaskedImage";
 	auto imgStr = std::make_unique<ImageStream>(str, width, colorMap->getNumPixelComps(), colorMap->getBits());
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	bool rewindDone = imgStr->rewind();
+	if (!rewindDone)
+		return;
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
 	bool resetDone = imgStr->reset();
 	if (resetDone)
 		return;
@@ -2559,7 +2588,11 @@ void SlaOutputDev::drawMaskedImage(GfxState *state, Object *ref, Stream *str,  i
 		return;
 
 	auto mskStr = std::make_unique<ImageStream>(maskStr, maskWidth, 1, 1);
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	bool mskRewindDone = mskStr->rewind();
+	if (!mskRewindDone)
+		return;
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
 	bool mskResetDone = mskStr->reset();
 	if (!mskResetDone)
 		return;
@@ -2609,7 +2642,11 @@ void SlaOutputDev::drawMaskedImage(GfxState *state, Object *ref, Stream *str,  i
 void SlaOutputDev::drawImage(GfxState *state, Object *ref, Stream *str, int width, int height, GfxImageColorMap *colorMap, bool interpolate, const int* maskColors, bool inlineImg)
 {
 	auto imgStr = std::make_unique<ImageStream>(str, width, colorMap->getNumPixelComps(), colorMap->getBits());
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	bool rewindDone = imgStr->rewind();
+	if (!rewindDone)
+		return;
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 02, 0)
 	bool resetDone = imgStr->reset();
 	if (!resetDone)
 		return;
@@ -2687,7 +2724,7 @@ void SlaOutputDev::drawImage(GfxState *state, Object *ref, Stream *str, int widt
 void SlaOutputDev::createImageFrame(QImage& image, GfxState *state, int numColorComponents)
 {
 //	qDebug() << "SlaOutputDev::createImageFrame";
-	const double *ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	double xCoor = m_doc->currentPage()->xOffset();
 	double yCoor = m_doc->currentPage()->yOffset();
 
@@ -2893,9 +2930,14 @@ void SlaOutputDev::beginMarkedContent(const char *name, Dict *properties)
 				return;
 			QString lName = QString("Layer_%1").arg(m_layerNum + 1);
 			Object obj = properties->lookup("Title");
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 04, 0)
+			if (obj.isString())
+				lName = QString(obj.getString().c_str());
+#else
 			if (obj.isString())
 				lName = QString(obj.getString()->c_str());
-			for (const auto& layer : m_doc->Layers)
+#endif
+			for (const auto& layer : std::as_const(m_doc->Layers))
 			{
 				if (layer.Name == lName)
 				{
@@ -2944,7 +2986,7 @@ void SlaOutputDev::endMarkedContent(GfxState *state)
 	if (mSte.name != "OC")
 		return;
 
-	for (const auto& layer : m_doc->Layers)
+	for (const auto& layer : std::as_const(m_doc->Layers))
 	{
 		if (layer.Name == mSte.ocgName)
 		{
@@ -2977,20 +3019,40 @@ void SlaOutputDev::updateFont(GfxState *state)
 #else
 	SlaOutFontFileID *id;
 #endif
-	SplashFontFile *fontFile;
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+	std::shared_ptr<SplashFontFile> fontFile;
+#else
+	SplashFontFile *fontFile = nullptr;
+#endif
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+	std::unique_ptr<SplashFontSrc> fontsrc;
+#else
 	SplashFontSrc *fontsrc = nullptr;
+#endif
 	Object refObj, strObj;
 #if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
 	std::vector<int> codeToGID;
 #else
 	int *codeToGID = nullptr;
 #endif
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+	std::array<double, 6> textMat;
+#else
 	const double *textMat = nullptr;
+#endif
 	double m11, m12, m21, m22, fontSize;
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	std::array<SplashCoord, 4> mat = { 1.0, 0.0, 0.0, 1.0 };
+#else
 	SplashCoord mat[4] = { 1.0, 0.0, 0.0, 1.0 };
+#endif
 	int n = 0;
 	int faceIndex = 0;
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 1, 0)
+	std::array<SplashCoord, 6> matrix = { 1.0, 0.0, 0.0, 1.0, 0.0, 0.0 };
+#else
 	SplashCoord matrix[6] = { 1.0, 0.0, 0.0, 1.0, 0.0, 0.0 };
+#endif
 
 	m_font = nullptr;
 
@@ -3037,16 +3099,35 @@ void SlaOutputDev::updateFont(GfxState *state)
 			fontType = fontLoc->fontType;
 		}
 
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+		if (!fileName.empty())
+			fontsrc = std::make_unique<SplashFontSrc>(fileName);
+		else
+			fontsrc = std::make_unique<SplashFontSrc>(std::move(tmpBuf.value()));
+#else
 		fontsrc = new SplashFontSrc;
 		if (!fileName.empty())
 			fontsrc->setFile(fileName);
 		else
 			fontsrc->setBuf(std::move(tmpBuf.value()));
+#endif
 
 		// load the font file
 		switch (fontType) {
 		case fontType1:
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 5, 0)
+			if (!(fontFile = m_fontEngine->loadType1Font(std::move(id), std::move(fontsrc), static_cast<Gfx8BitFont*>(gfxFont)->getEncoding(), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadType1Font(std::move(id), std::move(fontsrc), (const char**) ((Gfx8BitFont*) gfxFont)->getEncoding(), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
 			if (!(fontFile = m_fontEngine->loadType1Font(std::move(id), fontsrc, (const char**) ((Gfx8BitFont*) gfxFont)->getEncoding(), fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
@@ -3061,7 +3142,19 @@ void SlaOutputDev::updateFont(GfxState *state)
 #endif
 			break;
 		case fontType1C:
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 5, 0)
+			if (!(fontFile = m_fontEngine->loadType1CFont(std::move(id), std::move(fontsrc), static_cast<Gfx8BitFont*>(gfxFont)->getEncoding(), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadType1CFont(std::move(id), std::move(fontsrc), (const char**) ((Gfx8BitFont*) gfxFont)->getEncoding(), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
 			if (!(fontFile = m_fontEngine->loadType1CFont(std::move(id), fontsrc, (const char**) ((Gfx8BitFont*) gfxFont)->getEncoding(), fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
@@ -3076,7 +3169,19 @@ void SlaOutputDev::updateFont(GfxState *state)
 #endif
 			break;
 		case fontType1COT:
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 5, 0)
+			if (!(fontFile = m_fontEngine->loadOpenTypeT1CFont(std::move(id), std::move(fontsrc), static_cast<Gfx8BitFont*>(gfxFont)->getEncoding(), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadOpenTypeT1CFont(std::move(id), std::move(fontsrc), (const char**) ((Gfx8BitFont*) gfxFont)->getEncoding(), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
 			if (!(fontFile = m_fontEngine->loadOpenTypeT1CFont(std::move(id), fontsrc, (const char **)((Gfx8BitFont *) gfxFont)->getEncoding(), fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
@@ -3092,7 +3197,12 @@ void SlaOutputDev::updateFont(GfxState *state)
 			break;
 		case fontTrueType:
 		case fontTrueTypeOT:
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 7, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!fileName.empty())
+				ff = FoFiTrueType::load(fileName.c_str(), fontLoc->fontNum);
+			else
+				ff = FoFiTrueType::make(fontsrc->buf(), fontLoc->fontNum);
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 7, 0)
 			if (!fileName.empty())
 				ff = FoFiTrueType::load(fileName.c_str(), fontLoc->fontNum);
 			else
@@ -3123,7 +3233,13 @@ void SlaOutputDev::updateFont(GfxState *state)
 #endif
 				n = 0;
 			}
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadTrueTypeFont(std::move(id), std::move(fontsrc), std::move(codeToGID), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
 			if (!(fontFile = m_fontEngine->loadTrueTypeFont(std::move(id), fontsrc, std::move(codeToGID), fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
@@ -3145,7 +3261,13 @@ void SlaOutputDev::updateFont(GfxState *state)
 			break;
 		case fontCIDType0:
 		case fontCIDType0C:
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadCIDFont(std::move(id), std::move(fontsrc), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(24, 11, 0)
 			if (!(fontFile = m_fontEngine->loadCIDFont(std::move(id), fontsrc, fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
@@ -3184,7 +3306,14 @@ void SlaOutputDev::updateFont(GfxState *state)
 				n = 0;
 			}
 #endif
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadOpenTypeCFFFont(std::move(id), std::move(fontsrc), std::move(codeToGID), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'",
+					gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
 			if (!(fontFile = m_fontEngine->loadOpenTypeCFFFont(std::move(id), fontsrc, std::move(codeToGID), fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'",
@@ -3232,7 +3361,12 @@ void SlaOutputDev::updateFont(GfxState *state)
 #endif
 			else
 			{
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 7, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+				if (!fileName.empty())
+					ff = FoFiTrueType::load(fileName.c_str(), fontLoc->fontNum);
+				else
+					ff = FoFiTrueType::make(fontsrc->buf(), fontLoc->fontNum);
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 7, 0)
 				if (!fileName.empty())
 					ff = FoFiTrueType::load(fileName.c_str(), fontLoc->fontNum);
 				else
@@ -3257,7 +3391,13 @@ void SlaOutputDev::updateFont(GfxState *state)
 #endif
 				ff.reset();
 			}
-#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+			if (!(fontFile = m_fontEngine->loadTrueTypeFont(std::move(id), std::move(fontsrc), std::move(codeToGID), fontLoc->fontNum)))
+			{
+				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
+				goto err2;
+			}
+#elif POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(25, 2, 0)
 			if (!(fontFile = m_fontEngine->loadTrueTypeFont(std::move(id), fontsrc, std::move(codeToGID), fontLoc->fontNum)))
 			{
 				error(errSyntaxError, -1, "Couldn't create a font for '{0:s}'", gfxFont->getName() ? gfxFont->getName()->c_str() : "(unnamed)");
@@ -3302,8 +3442,10 @@ void SlaOutputDev::updateFont(GfxState *state)
 	mat[3] = -m22;
 	m_font = m_fontEngine->getFont(fontFile, mat, matrix);
 
+#if POPPLER_ENCODED_VERSION < POPPLER_VERSION_ENCODE(26, 2, 0)
 	if (fontsrc && !fontsrc->isFile)
 		fontsrc->unref();
+#endif
 	return;
 
 err2:
@@ -3314,8 +3456,12 @@ err2:
 #endif
 
 err1:
+#if POPPLER_ENCODED_VERSION >= POPPLER_VERSION_ENCODE(26, 2, 0)
+	fontsrc.reset();
+#else
 	if (fontsrc && !fontsrc->isFile)
 		fontsrc->unref();
+#endif
 }
 
 void SlaOutputDev::drawChar(GfxState* state, double x, double y, double dx, double dy, double originX, double originY, CharCode code, int nBytes, const Unicode* u, int uLen)
@@ -3369,7 +3515,7 @@ void SlaOutputDev::drawChar(GfxState* state, double x, double y, double dx, doub
 		if (f & splashPathLast)
 			qPath.closeSubpath();
 	}
-	const double * ctm = state->getCTM();
+	const auto ctm = state->getCTM();
 	m_ctm = QTransform(ctm[0], ctm[1], ctm[2], ctm[3], ctm[4], ctm[5]);
 	double xCoor = m_doc->currentPage()->xOffset();
 	double yCoor = m_doc->currentPage()->yOffset();
@@ -3436,7 +3582,7 @@ void SlaOutputDev::endType3Char(GfxState *state)
 		m_doc->m_Selection->delaySignalsOn();
 		for (int dre = 0; dre < gElements.Items.count(); ++dre)
 		{
-			m_doc->m_Selection->addItem(gElements.Items.at(dre), true);
+			m_doc->m_Selection->addItem(gElements.Items.at(dre));
 			m_Elements->removeAll(gElements.Items.at(dre));
 		}
 		PageItem *ite;
@@ -3493,7 +3639,7 @@ void SlaOutputDev::endTextObject(GfxState *state)
 		{
 			for (int dre = 0; dre < gElements.Items.count(); ++dre)
 			{
-				m_tmpSel->addItem(gElements.Items.at(dre), true);
+				m_tmpSel->addItem(gElements.Items.at(dre));
 				m_Elements->removeAll(gElements.Items.at(dre));
 			}
 			PageItem *ite;
@@ -3649,7 +3795,7 @@ QString SlaOutputDev::getAnnotationColor(const AnnotColor *color)
 		double Gc = color_data[1];
 		double Bc = color_data[2];
 		tmp.setRgbColorF(Rc, Gc, Bc);
-		fNam = m_doc->PageColors.tryAddColor(namPrefix+tmp.name(), tmp);
+		fNam = m_doc->PageColors.tryAddColor(namPrefix + tmp.name(), tmp);
 	}
 	else if (color->getSpace() == AnnotColor::colorCMYK)
 	{
@@ -3663,7 +3809,7 @@ QString SlaOutputDev::getAnnotationColor(const AnnotColor *color)
 		double Yc = color_data[2];
 		double Kc = color_data[3];
 		tmp.setCmykColorF(Cc, Mc, Yc, Kc);
-		fNam = m_doc->PageColors.tryAddColor(namPrefix+tmp.name(), tmp);
+		fNam = m_doc->PageColors.tryAddColor(namPrefix + tmp.name(), tmp);
 	}
 	else if (color->getSpace() == AnnotColor::colorGray)
 	{
@@ -3674,9 +3820,9 @@ QString SlaOutputDev::getAnnotationColor(const AnnotColor *color)
 #endif
 		double Kc = 1.0 - color_data[0];
 		tmp.setCmykColorF(0, 0, 0, Kc);
-		fNam = m_doc->PageColors.tryAddColor(namPrefix+tmp.name(), tmp);
+		fNam = m_doc->PageColors.tryAddColor(namPrefix + tmp.name(), tmp);
 	}
-	if (fNam == namPrefix+tmp.name())
+	if (fNam == namPrefix + tmp.name())
 		m_importedColors->append(fNam);
 	return fNam;
 }
@@ -3867,7 +4013,7 @@ QString SlaOutputDev::UnicodeParsedString(const GooString *s1) const
 	if (!s1 || s1->empty())
 		return QString();
 	bool isUnicode;
-	int i;
+	size_t i;
 	Unicode u;
 	QString result;
 	if ((s1->getChar(0) & 0xff) == 0xfe && (s1->size() > 1 && (s1->getChar(1) & 0xff) == 0xff))

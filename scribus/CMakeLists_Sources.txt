@@ -18,7 +18,7 @@ else()
 endif()
 
 if (JXL_FOUND)
-	set(SCRIBUS_JPEGXL_SRC imagedataloaders/scimgdataloader_jpegxl.cpp	)
+	set(SCRIBUS_JPEGXL_SRC imagedataloaders/scimgdataloader_jpegxl.cpp)
 endif()
 
 set(SCRIBUS_SOURCES
@@ -83,6 +83,7 @@ set(SCRIBUS_SOURCES
 	fontlistmodel.cpp
 	fpoint.cpp
 	fpointarray.cpp
+	framelinkrouter.cpp
 	gtaction.cpp
 	gtfont.cpp
 	gtframestyle.cpp
@@ -206,18 +207,21 @@ set(SCRIBUS_SOURCES
 	scstreamfilter_flate.cpp
 	scstreamfilter_jpeg.cpp
 	scstreamfilter_rc4.cpp
+	sctextcodec.cpp
 	sctextstream.cpp
 	sctextstruct.cpp
 	scxmlstreamreader.cpp
 	selection.cpp
 	selectionrubberband.cpp
 	serializer.cpp
+	spellcheckfunctions.cpp
 	storyloader.cpp
 	styleitem.cpp
 	stylesearch.cpp
 	tableborder.cpp
 	tablecell.cpp
 	tableutils.cpp
+	textframespellchecker.cpp
 	textnote.cpp
 	textwriter.cpp
 	tocgenerator.cpp

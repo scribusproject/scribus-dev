@@ -34,7 +34,7 @@ for which a new license (GPL+exception) is in place.
 
 // include cmdvar.h first, as it pulls in <Python.h>
 #include "cmdannotations.h"
-#include "cmdvar.h"
+#include "cmdbarcode.h"
 #include "cmdcell.h"
 #include "cmdcolor.h"
 #include "cmddialog.h"
@@ -46,10 +46,11 @@ for which a new license (GPL+exception) is in place.
 #include "cmdobj.h"
 #include "cmdpage.h"
 #include "cmdsetprop.h"
+#include "cmdstyle.h"
 #include "cmdtable.h"
 #include "cmdtext.h"
 #include "cmdutil.h"
-#include "cmdstyle.h"
+#include "cmdvar.h"
 #include "guiapp.h"
 #include "objimageexport.h"
 #include "objpdffile.h"
@@ -292,6 +293,7 @@ PyMethodDef scribus_methods[] = {
 	{ "changeColorRGBFloat", scribus_setcolorrgbfloat, METH_VARARGS, tr(scribus_setcolorrgbfloat__doc__)},
 	{ "closeDoc", (PyCFunction) scribus_closedoc, METH_NOARGS, tr(scribus_closedoc__doc__)},
 	{ "closeMasterPage", (PyCFunction) scribus_closemasterpage, METH_NOARGS, tr(scribus_closemasterpage__doc__)},
+	{ "createBarcode", scribus_createbarcode, METH_VARARGS, tr(scribus_createbarcode__doc__)},
 	{ "createBezierLine", scribus_createbezierline, METH_VARARGS, tr(scribus_createbezierline__doc__)},
 	{ "createCharStyle", (PyCFunction) scribus_createcharstyle, METH_VARARGS|METH_KEYWORDS, tr(scribus_createcharstyle__doc__)},
 	{ "createCustomLineStyle", scribus_createcustomlinestyle, METH_VARARGS, tr(scribus_createcustomlinestyle__doc__)},
@@ -381,6 +383,7 @@ PyMethodDef scribus_methods[] = {
 	{ "getImagePreviewResolution", scribus_getimagepreviewresolution, METH_VARARGS, tr(scribus_getimagepreviewresolution__doc__)},
 	{ "getImagePageCount", scribus_getimagepagecount, METH_VARARGS, tr(scribus_getimagepagecount__doc__)},
 	{ "getImagePpi", scribus_getimageppi, METH_VARARGS, tr(scribus_getimageppi__doc__)},
+	{ "getImageRotation", scribus_getimagerotation, METH_VARARGS, tr(scribus_getimagerotation__doc__)},
 	{ "getImageScale", scribus_getimagescale, METH_VARARGS, tr(scribus_getimagescale__doc__)},
 	{ "getInfo", (PyCFunction) scribus_getinfo, METH_VARARGS, tr(scribus_getinfo__doc__)},
 	{ "getItemPageNumber", scribus_getitempagenumber, METH_VARARGS, tr(scribus_getitempagenumber__doc__)},
@@ -502,6 +505,7 @@ PyMethodDef scribus_methods[] = {
 	{ "redrawAll", (PyCFunction) scribus_redraw, METH_NOARGS, tr(scribus_redraw__doc__)},
 	{ "removeTableColumns", scribus_removetablecolumns, METH_VARARGS, tr(scribus_removetablecolumns__doc__)},
 	{ "removeTableRows", scribus_removetablerows, METH_VARARGS, tr(scribus_removetablerows__doc__)},
+	{ "removeUnusedStyles", (PyCFunction) scribus_removeunusedstyles, METH_VARARGS, tr(scribus_removeunusedstyles__doc__)},
 	{ "renderFont", (PyCFunction) scribus_renderfont, METH_VARARGS|METH_KEYWORDS, tr(scribus_renderfont__doc__)},
 	{ "replaceColor", scribus_replcolor, METH_VARARGS, tr(scribus_replcolor__doc__)},
 	{ "resizeTableColumn", scribus_resizetablecolumn, METH_VARARGS, tr(scribus_resizetablecolumn__doc__)},
@@ -564,6 +568,7 @@ PyMethodDef scribus_methods[] = {
 	{ "setImageOffset", scribus_setimageoffset, METH_VARARGS, tr(scribus_setimageoffset__doc__)},
 	{ "setImagePage", scribus_setimagepage, METH_VARARGS, tr(scribus_setimagepage__doc__)},
 	{ "setImagePreviewResolution", scribus_setimagepreviewresolution, METH_VARARGS, tr(scribus_setimagepreviewresolution__doc__)},
+	{ "setImageRotation", scribus_setimagerotation, METH_VARARGS, tr(scribus_setimagerotation__doc__)},
 	{ "setImageScale", scribus_setimagescale, METH_VARARGS, tr(scribus_setimagescale__doc__)},
 	{ "setInfo", scribus_setinfo, METH_VARARGS, tr(scribus_setinfo__doc__)},
 	{ "setItemName", scribus_setitemname, METH_VARARGS, tr(scribus_setitemname__doc__)},

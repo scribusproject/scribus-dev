@@ -336,6 +336,7 @@ bool Scribus171Format::saveFile(const QString & fileName, const FileFormat & /* 
 	docu.writeAttribute("PageSize", m_Doc->pageSize());
 	docu.writeAttribute("FirstPageNumber", m_Doc->FirstPnum);
 	docu.writeAttribute("PagePositioning", m_Doc->pagePositioning());
+	docu.writeAttribute("BindingDirection", m_Doc->bindingDirection());
 	if (m_Doc->usesAutomaticTextFrames())
 		docu.writeAttribute("AutomaticTextFrames", 1);
 	docu.writeAttribute("AutomaticTextFrameColumnCount", m_Doc->PageSp);
@@ -668,7 +669,7 @@ void Scribus171Format::writeJavascripts(ScXmlStreamWriter & docu) const
 
 void Scribus171Format::writeBookmarks(ScXmlStreamWriter & docu) const
 {	
-	for (const auto& bookmark : m_Doc->BookMarks)
+	for (const auto& bookmark : std::as_const(m_Doc->BookMarks))
 	{
 		docu.writeEmptyElement("Bookmark");
 		docu.writeAttribute("Title", bookmark.Title);
@@ -1429,45 +1430,7 @@ void Scribus171Format::writeSections(ScXmlStreamWriter & docu) const
 		docu.writeAttribute("Name", (*it).name);
 		docu.writeAttribute("From", (*it).fromindex);
 		docu.writeAttribute("To", (*it).toindex);
-		switch ((*it).type)
-		{
-			case Type_1_2_3:
-				docu.writeAttribute("Type", "Type_1_2_3");
-				break;
-			case Type_1_2_3_ar:
-				docu.writeAttribute("Type", "Type_1_2_3_ar");
-				break;
-			case Type_i_ii_iii:
-				docu.writeAttribute("Type", "Type_i_ii_iii");
-				break;
-			case Type_I_II_III:
-				docu.writeAttribute("Type", "Type_I_II_III");
-				break;
-			case Type_a_b_c:
-				docu.writeAttribute("Type", "Type_a_b_c");
-				break;
-			case Type_A_B_C:
-				docu.writeAttribute("Type", "Type_A_B_C");
-				break;
-			case Type_Alphabet_ar:
-				docu.writeAttribute("Type", "Type_Alphabet_ar");
-				break;
-			case Type_Abjad_ar:
-				docu.writeAttribute("Type", "Type_Abjad_ar");
-				break;
-			case Type_Hebrew:
-				docu.writeAttribute("Type", "Type_Hebrew");
-				break;
-			case Type_asterix:
-				docu.writeAttribute("Type", "Type_asterix");
-				break;
-			case Type_CJK:
-				docu.writeAttribute("Type", "Type_CJK");
-				break;
-			case Type_None:
-				docu.writeAttribute("Type", "Type_None");
-				break;
-		}
+		docu.writeAttribute("Type", fromNumToString((*it).type));
 		docu.writeAttribute("Start", (*it).sectionstartindex);
 		docu.writeAttribute("Reversed", (*it).reversed);
 		docu.writeAttribute("Active", (*it).active);
@@ -1579,45 +1542,7 @@ void  Scribus171Format::writeNotesStyles(ScXmlStreamWriter & docu, const QString
 		docu.writeAttribute("Name", noteStyle->name());
 		docu.writeAttribute("Start", noteStyle->start());
 		docu.writeAttribute("Endnotes", noteStyle->isEndNotes());
-		switch (noteStyle->getType())
-		{
-			case Type_1_2_3:
-				docu.writeAttribute("Type", "Type_1_2_3");
-				break;
-			case Type_1_2_3_ar:
-				docu.writeAttribute("Type", "Type_1_2_3_ar");
-				break;
-			case Type_i_ii_iii:
-				docu.writeAttribute("Type", "Type_i_ii_iii");
-				break;
-			case Type_I_II_III:
-				docu.writeAttribute("Type", "Type_I_II_III");
-				break;
-			case Type_a_b_c:
-				docu.writeAttribute("Type", "Type_a_b_c");
-				break;
-			case Type_A_B_C:
-				docu.writeAttribute("Type", "Type_A_B_C");
-				break;
-			case Type_Alphabet_ar:
-				docu.writeAttribute("Type", "Type_Alphabet_ar");
-				break;
-			case Type_Abjad_ar:
-				docu.writeAttribute("Type", "Type_Abjad_ar");
-				break;
-			case Type_Hebrew:
-				docu.writeAttribute("Type", "Type_Hebrew");
-				break;
-			case Type_asterix:
-				docu.writeAttribute("Type", "Type_asterix");
-				break;
-			case Type_CJK:
-				docu.writeAttribute("Type", "Type_CJK");
-				break;
-			case Type_None:
-				docu.writeAttribute("Type", "Type_None");
-				break;
-		}
+		docu.writeAttribute("Type", fromNumToString(noteStyle->getType()));
 		docu.writeAttribute("Range", (int) noteStyle->range());
 		docu.writeAttribute("Prefix", noteStyle->prefix());
 		docu.writeAttribute("Suffix", noteStyle->suffix());
@@ -2929,6 +2854,8 @@ void Scribus171Format::SetItemProps(ScXmlStreamWriter& docu, PageItem* item, con
 		docu.writeAttribute("ItemLocked", 1);
 	if (item->sizeLocked())
 		docu.writeAttribute("ItemSizeLocked", 1);
+	if (item->aspectRatioLocked())
+		docu.writeAttribute("ItemAspectRatioLocked", 1);
 	if (item->fillTransparency() != 0)
 		docu.writeAttribute("FillTransparency", item->fillTransparency());
 	if (item->lineTransparency() != 0)
@@ -3000,7 +2927,7 @@ void Scribus171Format::SetItemProps(ScXmlStreamWriter& docu, PageItem* item, con
 	{
 		docu.writeAttribute("DashValues", item->DashValues.count());
 		QString dlp;
-		for (auto dashValue : item->DashValues)
+		for (auto dashValue : std::as_const(item->DashValues))
 			dlp += QString::number(dashValue) + " ";
 		docu.writeAttribute("Dashes", dlp);
 		docu.writeAttribute("DashOffset", item->DashOffset);

@@ -23,6 +23,7 @@ for which a new license (GPL+exception) is in place.
 #include <libmspub/libmspub.h>
 
 #include "commonstrings.h"
+#include "documentlogmanager.h"
 #include "loadsaveplugin.h"
 #include "prefsmanager.h"
 #include "scconfig.h"
@@ -38,16 +39,11 @@ for which a new license (GPL+exception) is in place.
 #include "undomanager.h"
 
 PubPlug::PubPlug(ScribusDoc* doc, int flags)
+       : m_Doc(doc),
+	     importerFlags(flags)
 {
-	baseX = baseY = 0;
-	docWidth = docHeight = 1;
-
 	tmpSel = new Selection(this, false);
-	m_Doc = doc;
-	importerFlags = flags;
 	interactive = (flags & LoadSavePlugin::lfInteractive);
-	progressDialog = nullptr;
-	cancel = false;
 }
 
 QImage PubPlug::readThumbnail(const QString& fName)
@@ -78,12 +74,9 @@ QImage PubPlug::readThumbnail(const QString& fName)
 		m_Doc->DoDrawing = true;
 		m_Doc->m_Selection->delaySignalsOn();
 		QImage tmpImage;
-		if (Elements.count() > 0)
+		if (!Elements.isEmpty())
 		{
-			for (int dre=0; dre<Elements.count(); ++dre)
-			{
-				tmpSel->addItem(Elements.at(dre), true);
-			}
+			tmpSel->addItems(Elements);
 			tmpSel->setGroupRect();
 			double xs = tmpSel->width();
 			double ys = tmpSel->height();
@@ -95,16 +88,18 @@ QImage PubPlug::readThumbnail(const QString& fName)
 		m_Doc->setLoading(false);
 		m_Doc->m_Selection->delaySignalsOff();
 		delete m_Doc;
+		m_Doc = nullptr;
 		return tmpImage;
 	}
 	QDir::setCurrent(CurDirP);
 	m_Doc->DoDrawing = true;
 	m_Doc->scMW()->setScriptRunning(false);
 	delete m_Doc;
+	m_Doc = nullptr;
 	return QImage();
 }
 
-bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
+bool PubPlug::importFile(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
 {
 	bool success = false;
 	interactive = (flags & LoadSavePlugin::lfInteractive);
@@ -132,7 +127,7 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		progressDialog->setProgress("GI", 0);
 		progressDialog->show();
 		connect(progressDialog, SIGNAL(canceled()), this, SLOT(cancelRequested()));
-		qApp->processEvents();
+		QApplication::processEvents();
 	}
 	else
 		progressDialog = nullptr;
@@ -142,7 +137,7 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	if (progressDialog)
 	{
 		progressDialog->setOverallProgress(1);
-		qApp->processEvents();
+		QApplication::processEvents();
 	}
 	if (w == 0.0)
 		w = PrefsManager::instance().appPrefs.docSetupPrefs.pageWidth;
@@ -152,7 +147,7 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	docHeight = h;
 	baseX = 0;
 	baseY = 0;
-	if (!interactive || (flags & LoadSavePlugin::lfInsertPage))
+	if (m_Doc && (!interactive || (flags & LoadSavePlugin::lfInsertPage)))
 	{
 		m_Doc->setPage(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false);
 		m_Doc->addPage(0);
@@ -160,25 +155,22 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		baseX = 0;
 		baseY = 0;
 	}
-	else
+	else if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
 	{
-		if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
-		{
-			m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
-			ScCore->primaryMainWindow()->HaveNewDoc();
-			ret = true;
-			baseX = 0;
-			baseY = 0;
-			baseX = m_Doc->currentPage()->xOffset();
-			baseY = m_Doc->currentPage()->yOffset();
-		}
+		m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
+		ScCore->primaryMainWindow()->HaveNewDoc();
+		ret = true;
+		baseX = 0;
+		baseY = 0;
+		baseX = m_Doc->currentPage()->xOffset();
+		baseY = m_Doc->currentPage()->yOffset();
 	}
-	if ((!ret) && (interactive))
+	if (!ret && interactive)
 	{
 		baseX = m_Doc->currentPage()->xOffset();
 		baseY = m_Doc->currentPage()->yOffset();
 	}
-	if ((ret) || (!interactive))
+	if (ret || !interactive)
 	{
 		if (docWidth > docHeight)
 			m_Doc->setPageOrientation(1);
@@ -194,7 +186,7 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	if ((!(flags & LoadSavePlugin::lfLoadAsPattern)) && (m_Doc->view() != nullptr))
 		m_Doc->view()->updatesOn(false);
 	m_Doc->scMW()->setScriptRunning(true);
-	qApp->setOverrideCursor(QCursor(Qt::WaitCursor));
+	QApplication::setOverrideCursor(QCursor(Qt::WaitCursor));
 	QString CurDirP = QDir::currentPath();
 	QDir::setCurrent(fi.path());
 	if (convert(fNameIn))
@@ -206,8 +198,8 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		m_Doc->DoDrawing = true;
 		m_Doc->scMW()->setScriptRunning(false);
 		m_Doc->setLoading(false);
-		qApp->changeOverrideCursor(QCursor(Qt::ArrowCursor));
-		if ((Elements.count() > 0) && (!ret) && (interactive))
+		QApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
+		if (!Elements.isEmpty() && !ret && interactive)
 		{
 			if (flags & LoadSavePlugin::lfScripted)
 			{
@@ -218,10 +210,7 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 				if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 				{
 					m_Doc->m_Selection->delaySignalsOn();
-					for (int dre=0; dre<Elements.count(); ++dre)
-					{
-						m_Doc->m_Selection->addItem(Elements.at(dre), true);
-					}
+					m_Doc->m_Selection->addItems(Elements);
 					m_Doc->m_Selection->delaySignalsOff();
 					m_Doc->m_Selection->setGroupRect();
 					if (m_Doc->view() != nullptr)
@@ -234,32 +223,25 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 				m_Doc->DraggedElem = nullptr;
 				m_Doc->DragElements.clear();
 				m_Doc->m_Selection->delaySignalsOn();
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				ScElemMimeData* md = ScriXmlDoc::writeToMimeData(m_Doc, tmpSel);
 				m_Doc->itemSelection_DeleteItem(tmpSel);
 				m_Doc->view()->updatesOn(true);
-				if (importedPatterns.count() != 0)
+				if (!importedPatterns.isEmpty())
 				{
-					for (int cd = 0; cd < importedPatterns.count(); cd++)
-					{
-						m_Doc->docPatterns.remove(importedPatterns[cd]);
-					}
+					for (const auto& importedPattern : std::as_const(importedPatterns))
+						m_Doc->docPatterns.remove(importedPattern);
 				}
-				if (importedColors.count() != 0)
+				if (!importedColors.isEmpty())
 				{
-					for (int cd = 0; cd < importedColors.count(); cd++)
-					{
-						m_Doc->PageColors.remove(importedColors[cd]);
-					}
+					for (const auto& importedColor : std::as_const(importedColors))
+						m_Doc->PageColors.remove(importedColor);
 				}
 				m_Doc->m_Selection->delaySignalsOff();
 				// We must copy the TransationSettings object as it is owned
 				// by handleObjectImport method afterwards
-				TransactionSettings* transacSettings = new TransactionSettings(trSettings);
+				auto* transacSettings = new TransactionSettings(trSettings);
 				m_Doc->view()->handleObjectImport(md, transacSettings);
 				m_Doc->DragP = false;
 				m_Doc->DraggedElem = nullptr;
@@ -281,17 +263,17 @@ bool PubPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		m_Doc->DoDrawing = true;
 		m_Doc->scMW()->setScriptRunning(false);
 		m_Doc->view()->updatesOn(true);
-		qApp->changeOverrideCursor(QCursor(Qt::ArrowCursor));
+		QApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
 	}
 	if (interactive)
 		m_Doc->setLoading(false);
 	//CB If we have a gui we must refresh it if we have used the progressbar
 	if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 	{
-		if ((showProgress) && (!interactive))
+		if (showProgress && !interactive)
 			m_Doc->view()->DrawNew();
 	}
-	qApp->restoreOverrideCursor();
+	QApplication::restoreOverrideCursor();
 	return success;
 }
 
@@ -320,39 +302,31 @@ bool PubPlug::convert(const QString& fn)
 	if (!libmspub::MSPUBDocument::isSupported(&input))
 	{
 		qDebug() << "ERROR: Unsupported file format!";
+		DocumentLogManager::instance().addLog(m_Doc->uuidString(), DocumentLogLevel::Error, "MS Publisher Importer", DocumentLogManager::msgUnsupportedFileFormat(fn));
 		return false;
 	}
 	RawPainter painter(m_Doc, baseX, baseY, docWidth, docHeight, importerFlags, &Elements, &importedColors, &importedPatterns, tmpSel, "pub");
 	if (!libmspub::MSPUBDocument::parse(&input, &painter))
 	{
 		qDebug() << "ERROR: Parsing failed!";
+		DocumentLogManager::instance().addLog(m_Doc->uuidString(), DocumentLogLevel::Error, "MS Publisher Importer", DocumentLogManager::msgFileImportFailed(fn));
 		if (progressDialog)
 			progressDialog->close();
 		if (importerFlags & LoadSavePlugin::lfCreateDoc)
 		{
 			ScribusMainWindow* mw = (m_Doc == nullptr) ? ScCore->primaryMainWindow() : m_Doc->scMW();
-			qApp->changeOverrideCursor(QCursor(Qt::ArrowCursor));
+			QApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
 			ScMessageBox::warning(mw, CommonStrings::trWarning, tr("Parsing failed!\n\nPlease submit your file (if possible) to the\nDocument Liberation Project https://www.documentliberation.org"));
-			qApp->changeOverrideCursor(QCursor(Qt::WaitCursor));
+			QApplication::changeOverrideCursor(QCursor(Qt::WaitCursor));
 		}
 		return false;
 	}
-	if (Elements.count() == 0)
+	if (Elements.isEmpty())
 	{
-		if (importedColors.count() != 0)
-		{
-			for (int cd = 0; cd < importedColors.count(); cd++)
-			{
-				m_Doc->PageColors.remove(importedColors[cd]);
-			}
-		}
-		if (importedPatterns.count() != 0)
-		{
-			for (int cd = 0; cd < importedPatterns.count(); cd++)
-			{
-				m_Doc->docPatterns.remove(importedPatterns[cd]);
-			}
-		}
+		for (const auto& importedColor : std::as_const(importedColors))
+			m_Doc->PageColors.remove(importedColor);
+		for (const auto& importedPattern : std::as_const(importedPatterns))
+			m_Doc->docPatterns.remove(importedPattern);
 	}
 	if (progressDialog)
 		progressDialog->close();

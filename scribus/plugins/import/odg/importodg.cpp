@@ -115,7 +115,7 @@ QImage OdgPlug::readThumbnail(const QString& fName)
 	return tmp;
 }
 
-bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
+bool OdgPlug::importFile(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
 {
 	bool success = false;
 	interactive = (flags & LoadSavePlugin::lfInteractive);
@@ -162,7 +162,7 @@ bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	docHeight = PrefsManager::instance().appPrefs.docSetupPrefs.pageHeight;
 	baseX = 0;
 	baseY = 0;
-	if (!interactive || (flags & LoadSavePlugin::lfInsertPage))
+	if (m_Doc && (!interactive || (flags & LoadSavePlugin::lfInsertPage)))
 	{
 		m_Doc->setPage(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false);
 		m_Doc->addPage(0);
@@ -170,18 +170,15 @@ bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		baseX = 0;
 		baseY = 0;
 	}
-	else
+	else if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
 	{
-		if (!m_Doc || (flags & LoadSavePlugin::lfCreateDoc))
-		{
-			m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
-			ScCore->primaryMainWindow()->HaveNewDoc();
-			ret = true;
-			baseX = 0;
-			baseY = 0;
-			baseX = m_Doc->currentPage()->xOffset();
-			baseY = m_Doc->currentPage()->yOffset() + m_Doc->currentPage()->height() / 2.0;
-		}
+		m_Doc = ScCore->primaryMainWindow()->doFileNew(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false, 0, false, 0, 1, "Custom", true);
+		ScCore->primaryMainWindow()->HaveNewDoc();
+		ret = true;
+		baseX = 0;
+		baseY = 0;
+		baseX = m_Doc->currentPage()->xOffset();
+		baseY = m_Doc->currentPage()->yOffset() + m_Doc->currentPage()->height() / 2.0;
 	}
 	if (!ret && interactive)
 	{
@@ -217,7 +214,7 @@ bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		m_Doc->scMW()->setScriptRunning(false);
 		m_Doc->setLoading(false);
 		QApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
-		if ((Elements.count() > 0) && !ret && interactive)
+		if (!Elements.isEmpty() && !ret && interactive)
 		{
 			if (flags & LoadSavePlugin::lfScripted)
 			{
@@ -228,10 +225,7 @@ bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 				if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 				{
 					m_Doc->m_Selection->delaySignalsOn();
-					for (int dre=0; dre<Elements.count(); ++dre)
-					{
-						m_Doc->m_Selection->addItem(Elements.at(dre), true);
-					}
+					m_Doc->m_Selection->addItems(Elements);
 					m_Doc->m_Selection->delaySignalsOff();
 					m_Doc->m_Selection->setGroupRect();
 					if (m_Doc->view() != nullptr)
@@ -244,27 +238,20 @@ bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 				m_Doc->DraggedElem = nullptr;
 				m_Doc->DragElements.clear();
 				m_Doc->m_Selection->delaySignalsOn();
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				ScElemMimeData* md = ScriXmlDoc::writeToMimeData(m_Doc, tmpSel);
 				m_Doc->itemSelection_DeleteItem(tmpSel);
 				m_Doc->view()->updatesOn(true);
-				if ((importedColors.count() != 0) && (!((flags & LoadSavePlugin::lfKeepGradients) || (flags & LoadSavePlugin::lfKeepColors) || (flags & LoadSavePlugin::lfKeepPatterns))))
+				if (!importedColors.isEmpty() && (!((flags & LoadSavePlugin::lfKeepGradients) || (flags & LoadSavePlugin::lfKeepColors) || (flags & LoadSavePlugin::lfKeepPatterns))))
 				{
-					for (int cd = 0; cd < importedColors.count(); cd++)
-					{
-						m_Doc->PageColors.remove(importedColors[cd]);
-					}
+					for (const auto& importedColor : std::as_const(importedColors))
+						m_Doc->PageColors.remove(importedColor);
 				}
-				if ((importedPatterns.count() != 0) && (!(flags & LoadSavePlugin::lfKeepPatterns)))
+				if (!importedPatterns.isEmpty() && (!(flags & LoadSavePlugin::lfKeepPatterns)))
 				{
-					for (int cd = 0; cd < importedPatterns.count(); cd++)
-					{
-						m_Doc->docPatterns.remove(importedPatterns[cd]);
-					}
+					for (const auto& importedPattern : std::as_const(importedPatterns))
+						m_Doc->docPatterns.remove(importedPattern);
 				}
 				m_Doc->m_Selection->delaySignalsOff();
 				// We must copy the TransationSettings object as it is owned
@@ -300,7 +287,7 @@ bool OdgPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	//CB If we have a gui we must refresh it if we have used the progressbar
 	if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 	{
-		if (showProgress && (!interactive))
+		if (showProgress && !interactive)
 			m_Doc->view()->DrawNew();
 	}
 	QApplication::restoreOverrideCursor();
@@ -759,7 +746,7 @@ PageItem* OdgPlug::parseObj(QDomElement &draw)
 				gLayer = ite->m_layerID;
 			}
 		}
-		if (GElements.count() > 0)
+		if (!GElements.isEmpty())
 		{
 			double minx =  std::numeric_limits<double>::max();
 			double miny =  std::numeric_limits<double>::max();
@@ -767,7 +754,7 @@ PageItem* OdgPlug::parseObj(QDomElement &draw)
 			double maxy = -std::numeric_limits<double>::max();
 			for (int ep = 0; ep < GElements.count(); ++ep)
 			{
-				PageItem* currItem = GElements.at(ep);
+				const PageItem* currItem = GElements.at(ep);
 				double x1, x2, y1, y2;
 				currItem->getVisualBoundingRect(&x1, &y1, &x2, &y2);
 				minx = qMin(minx, x1);
@@ -1703,7 +1690,7 @@ PageItem* OdgPlug::parseFrame(QDomElement &e)
 	return retObj;
 }
 
-void OdgPlug::parseText(QDomElement &elem, PageItem* item, ObjStyle& tmpOStyle)
+void OdgPlug::parseText(QDomElement &elem, PageItem* item, const ObjStyle& tmpOStyle)
 {
 	int posC = 0;
 	QString pStyleD = CommonStrings::DefaultParagraphStyle;
@@ -1871,19 +1858,19 @@ void OdgPlug::parseText(QDomElement &elem, PageItem* item, ObjStyle& tmpOStyle)
 	item->itemText.trim();
 }
 
-void OdgPlug::insertChars(PageItem *item, QString &txt, ParagraphStyle &tmpStyle, CharStyle &tmpCStyle, int &posC)
+void OdgPlug::insertChars(PageItem *item, QString &txt, const ParagraphStyle &tmpStyle, const CharStyle &tmpCStyle, int &posC) const
 {
-	if (txt.length() > 0)
-	{
-		item->itemText.insertChars(posC, txt);
-		item->itemText.applyStyle(posC, tmpStyle);
-		item->itemText.applyCharStyle(posC, txt.length(), tmpCStyle);
-		posC = item->itemText.length();
-		txt = "";
-	}
+	if (txt.length() <= 0)
+		return;
+
+	item->itemText.insertChars(posC, txt);
+	item->itemText.applyStyle(posC, tmpStyle);
+	item->itemText.applyCharStyle(posC, txt.length(), tmpCStyle);
+	posC = item->itemText.length();
+	txt.clear();
 }
 
-void OdgPlug::applyCharacterStyle(CharStyle &tmpCStyle, ObjStyle &oStyle)
+void OdgPlug::applyCharacterStyle(CharStyle &tmpCStyle, const ObjStyle & oStyle)
 {
 	tmpCStyle.setFont((*m_Doc->AllFonts)[oStyle.fontName]);
 	tmpCStyle.setFontSize(oStyle.fontSize * 10);
@@ -1931,7 +1918,7 @@ void OdgPlug::applyCharacterStyle(CharStyle &tmpCStyle, ObjStyle &oStyle)
 	tmpCStyle.setFeatures(styleEffects.featureList());
 }
 
-void OdgPlug::applyParagraphStyle(ParagraphStyle &tmpStyle, ObjStyle &oStyle) const
+void OdgPlug::applyParagraphStyle(ParagraphStyle &tmpStyle, const ObjStyle &oStyle) const
 {
 	tmpStyle.setAlignment(oStyle.textAlign);
 	tmpStyle.setLeftMargin(oStyle.margin_left);
@@ -2010,7 +1997,7 @@ void OdgPlug::parseTransform(FPointArray *composite, const QString &transform) c
 			else
 			{
 				dx = parseUnit(params[0]);
-				dy =0.0;
+				dy = 0.0;
 			}
 			result = QTransform();
 			result.translate(dx, dy);
@@ -2044,7 +2031,7 @@ void OdgPlug::parseViewBox(const QDomElement& object, double *x, double *y, doub
 	}
 }
 
-void OdgPlug::appendPoints(FPointArray *composite, const QDomElement& object, bool closePath)
+void OdgPlug::appendPoints(FPointArray *composite, const QDomElement& object, bool closePath) const
 {
 	double x = parseUnit(object.attribute("svg:x"));
 	double y = parseUnit(object.attribute("svg:y")) ;
@@ -2829,16 +2816,12 @@ double OdgPlug::parseUnit(const QString &unit) const
 
 const char * OdgPlug::getCoord(const char *ptr, double &number) const
 {
-	int integer, exponent;
-	double decimal, frac;
-	int sign, expsign;
-
-	exponent = 0;
-	integer = 0;
-	frac = 1.0;
-	decimal = 0;
-	sign = 1;
-	expsign = 1;
+	int exponent = 0;
+	int integer = 0;
+	double frac = 1.0;
+	double decimal = 0;
+	int sign = 1;
+	int expsign = 1;
 
 	// read the sign
 	if (*ptr == '+')
@@ -2890,7 +2873,7 @@ const char * OdgPlug::getCoord(const char *ptr, double &number) const
 	return ptr;
 }
 
-bool OdgPlug::parseEnhPath(const QString& svgPath, FPointArray &result, bool &fill, bool &stroke)
+bool OdgPlug::parseEnhPath(const QString& svgPath, FPointArray &result, bool &fill, bool &stroke) const
 {
 	QString d(svgPath);
 	d.replace( QRegularExpression( "," ), " ");
@@ -3132,13 +3115,13 @@ double OdgPlug::degSweepAngle(double start, double stop, bool clockwise) const
    return sweepAngle;
 }
 
-void OdgPlug::arcTo(QPainterPath &path, QPointF startpoint, double rx, double ry, double startAngle, double sweepAngle) const
+void OdgPlug::arcTo(QPainterPath &path, QPointF startPoint, double rx, double ry, double startAngle, double sweepAngle) const
 {
 	QPointF curvePoints[12];
-	int pointCnt = arcToCurve(rx, ry, startAngle, sweepAngle, startpoint, curvePoints);
+	int pointCnt = arcToCurve(rx, ry, startAngle, sweepAngle, startPoint, curvePoints);
 	for (int i = 0; i < pointCnt; i += 3)
 	{
-		path.cubicTo(curvePoints[i], curvePoints[i+1], curvePoints[i+2]);
+		path.cubicTo(curvePoints[i], curvePoints[i + 1], curvePoints[i + 2]);
 	}
 }
 
@@ -3210,7 +3193,7 @@ PageItem* OdgPlug::groupObjects(QList<PageItem *> &GElements)
 	double maxy = -std::numeric_limits<double>::max();
 	for (int ep = 0; ep < GElements.count(); ++ep)
 	{
-		PageItem* currItem = GElements.at(ep);
+		const PageItem* currItem = GElements.at(ep);
 		double x1, x2, y1, y2;
 		currItem->getVisualBoundingRect(&x1, &y1, &x2, &y2);
 		minx = qMin(minx, x1);
@@ -3312,7 +3295,7 @@ QString OdgPlug::constructFontName(const QString& fontBaseName, const QString& f
 			// found the font family, now go for the style
 			QStringList slist = PrefsManager::instance().appPrefs.fontPrefs.AvailFonts.fontMap[it.current().family()];
 			slist.sort();
-			if (slist.count() > 0)
+			if (!slist.isEmpty())
 			{
 				for (int a = 0; a < slist.count(); a++)
 				{
@@ -3367,7 +3350,7 @@ QString OdgPlug::constructFontName(const QString& fontBaseName, const QString& f
 	return fontName;
 }
 
-QPointF OdgPlug::intersectBoundingRect(PageItem *item, QLineF gradientVector) const
+QPointF OdgPlug::intersectBoundingRect(const PageItem *item, QLineF gradientVector) const
 {
 	QPointF interPoint;
 	QPointF gradEnd;
@@ -3382,7 +3365,7 @@ QPointF OdgPlug::intersectBoundingRect(PageItem *item, QLineF gradientVector) co
 	return gradEnd;
 }
 
-PageItem* OdgPlug::applyStartArrow(PageItem* ite, ObjStyle &obState)
+PageItem* OdgPlug::applyStartArrow(const PageItem* ite, const ObjStyle &obState)
 {
 	if (obState.startMarkerName.isEmpty())
 		return nullptr;
@@ -3449,7 +3432,7 @@ PageItem* OdgPlug::applyStartArrow(PageItem* ite, ObjStyle &obState)
 	return iteS;
 }
 
-PageItem* OdgPlug::applyEndArrow(PageItem* ite, ObjStyle &obState)
+PageItem* OdgPlug::applyEndArrow(const PageItem* ite, const ObjStyle &obState)
 {
 	if (obState.endMarkerName.isEmpty())
 		return nullptr;
@@ -3516,7 +3499,7 @@ PageItem* OdgPlug::applyEndArrow(PageItem* ite, ObjStyle &obState)
 	return iteS;
 }
 
-void OdgPlug::finishItem(PageItem* item, ObjStyle &obState)
+void OdgPlug::finishItem(PageItem* item, const ObjStyle &obState)
 {
 	item->ClipEdited = true;
 	item->FrameType = 3;

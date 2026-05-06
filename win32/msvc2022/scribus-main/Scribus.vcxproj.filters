@@ -337,6 +337,9 @@
     <ClInclude Include="..\..\..\scribus\fpointarray.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\scribus\framelinkrouter.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\scribus\gtaction.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -691,6 +694,9 @@
     <ClInclude Include="..\..\..\scribus\scstreamfilter_rc4.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\scribus\sctextcodec.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\scribus\sctextstream.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -704,6 +710,9 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\scribus\serializer.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\scribus\spellcheckfunctions.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\scribus\style.h">
@@ -794,6 +803,9 @@
       <Filter>Source Files\text</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\scribus\text\specialchars.h">
+      <Filter>Source Files\text</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\scribus\text\storytextsnapshot.h">
       <Filter>Source Files\text</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\scribus\text\textcontext.h">
@@ -1228,6 +1240,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\scribus\fpointarray.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\scribus\framelinkrouter.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\scribus\gtaction.cpp">
@@ -1704,6 +1719,9 @@
     <ClCompile Include="..\..\..\scribus\scstreamfilter_rc4.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\scribus\sctextcodec.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\scribus\sctextstream.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -1720,6 +1738,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\scribus\serializer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\scribus\spellcheckfunctions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\scribus\storyloader.cpp">
@@ -1806,6 +1827,9 @@
     <ClCompile Include="..\..\..\scribus\text\storytext.cpp">
       <Filter>Source Files\text</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\scribus\text\storytextsnapshot.cpp">
+      <Filter>Source Files\text</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\scribus\text\textcontext.cpp">
       <Filter>Source Files\text</Filter>
     </ClCompile>
@@ -1817,6 +1841,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\scribus\text\textshaper.cpp">
       <Filter>Source Files\text</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\scribus\textframespellchecker.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\scribus\textnote.cpp">
       <Filter>Source Files</Filter>
@@ -3198,6 +3225,9 @@
     <uic Include="..\..\..\scribus\ui\resourcemanagerlicensebase.ui">
       <Filter>Form Files</Filter>
     </uic>
+    <uic Include="..\..\..\scribus\ui\searchbase.ui">
+      <Filter>Form Files</Filter>
+    </uic>
     <uic Include="..\..\..\scribus\ui\selectobjects.ui">
       <Filter>Form Files</Filter>
     </uic>
@@ -3323,7 +3353,16 @@
     <lrelease Include="..\..\..\resources\translations\scribus.es_AR.ts">
       <Filter>Translation Files</Filter>
     </lrelease>
+    <lrelease Include="..\..\..\resources\translations\scribus.es_CO.ts">
+      <Filter>Translation Files</Filter>
+    </lrelease>
     <lrelease Include="..\..\..\resources\translations\scribus.es_ES.ts">
+      <Filter>Translation Files</Filter>
+    </lrelease>
+    <lrelease Include="..\..\..\resources\translations\scribus.es_MX.ts">
+      <Filter>Translation Files</Filter>
+    </lrelease>
+    <lrelease Include="..\..\..\resources\translations\scribus.es_VE.ts">
       <Filter>Translation Files</Filter>
     </lrelease>
     <lrelease Include="..\..\..\resources\translations\scribus.et.ts">
@@ -3354,6 +3393,9 @@
       <Filter>Translation Files</Filter>
     </lrelease>
     <lrelease Include="..\..\..\resources\translations\scribus.hu.ts">
+      <Filter>Translation Files</Filter>
+    </lrelease>
+    <lrelease Include="..\..\..\resources\translations\scribus.ia.ts">
       <Filter>Translation Files</Filter>
     </lrelease>
     <lrelease Include="..\..\..\resources\translations\scribus.id.ts">
@@ -3399,6 +3441,12 @@
       <Filter>Translation Files</Filter>
     </lrelease>
     <lrelease Include="..\..\..\resources\translations\scribus.oc.ts">
+      <Filter>Translation Files</Filter>
+    </lrelease>
+    <lrelease Include="..\..\..\resources\translations\scribus.pa.ts">
+      <Filter>Translation Files</Filter>
+    </lrelease>
+    <lrelease Include="..\..\..\resources\translations\scribus.pa_IN.ts">
       <Filter>Translation Files</Filter>
     </lrelease>
     <lrelease Include="..\..\..\resources\translations\scribus.pl_PL.ts">
@@ -3752,6 +3800,9 @@
       <Filter>Source Files</Filter>
     </moc>
     <moc Include="..\..\..\scribus\text\storytext.h">
+      <Filter>Source Files\text</Filter>
+    </moc>
+    <moc Include="..\..\..\scribus\textframespellchecker.h">
       <Filter>Source Files</Filter>
     </moc>
     <moc Include="..\..\..\scribus\textnote.h">

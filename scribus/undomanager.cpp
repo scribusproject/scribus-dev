@@ -145,10 +145,10 @@ void UndoManager::setState(UndoGui* gui, int uid)
 {
 	gui->clear();
 
-	if ( m_stacks[m_currentDoc].size() == 0 )
+	if ( m_stacks.value(m_currentDoc).size() == 0 )
 		return;
 
-	UndoStack& currentStack = m_stacks[m_currentDoc];
+	auto currentStack = m_stacks.value(m_currentDoc);
 
 	StateList::iterator itstartU = currentStack.m_undoActions.begin(); // undo actions
 	StateList::iterator itendU   = currentStack.m_undoActions.end();
@@ -286,13 +286,13 @@ void UndoManager::renameStack(const QString& newName)
 	if (m_currentDoc == newName)
 		return;
 
-	if (m_stacks[m_currentDoc].size() == 0)
+	if (m_stacks.value(m_currentDoc).size() == 0)
 	{
 		m_currentDoc = newName;
 		return;
 	}
 	
-	UndoStack tmp(m_stacks[m_currentDoc]);
+	UndoStack tmp(m_stacks.value(m_currentDoc));
 	m_stacks.remove(m_currentDoc);
 	m_stacks[newName] = tmp;
 	m_currentDoc = newName;
@@ -454,7 +454,7 @@ UndoObject* UndoManager::replaceObject(ulong uid, UndoObject *newUndoObject)
 	TransactionState* transaction_ = nullptr;
 	if (!m_transactions.empty())
 		transaction_ = m_transactions.at(m_transactions.size()-1)->transactionState;
-	for (uint i = 0; i < m_stacks[m_currentDoc].m_undoActions.size(); ++i)
+	for (uint i = 0; i < m_stacks.value(m_currentDoc).m_undoActions.size(); ++i)
 	{
 		UndoState *tmpState = m_stacks[m_currentDoc].m_undoActions[i];
 		TransactionState *ts = dynamic_cast<TransactionState*>(tmpState);
@@ -466,7 +466,7 @@ UndoObject* UndoManager::replaceObject(ulong uid, UndoObject *newUndoObject)
 			tmpState->setUndoObject(newUndoObject);
 		}
 	}
-	for (uint i = 0; i < m_stacks[m_currentDoc].m_redoActions.size(); ++i)
+	for (uint i = 0; i < m_stacks.value(m_currentDoc).m_redoActions.size(); ++i)
 	{
 		UndoState *tmpState = m_stacks[m_currentDoc].m_redoActions[i];
 		TransactionState *ts = dynamic_cast<TransactionState*>(tmpState);
@@ -488,20 +488,17 @@ void UndoManager::setHistoryLength(int steps)
 	if (steps >= 0)
 	{
 		m_stacks[m_currentDoc].setMaxSize(static_cast<uint>(steps));
-		prefs_->set("historylength", m_stacks[m_currentDoc].maxSize());
+		prefs_->set("historylength", m_stacks.value(m_currentDoc).maxSize());
 	}
 }
 
 void UndoManager::setAllHistoryLengths(int steps)
 {
-	if (steps >= 0)
-	{
-		for (StackMap::Iterator it = m_stacks.begin(); it != m_stacks.end(); ++it )
-		{
-			it.value().setMaxSize(static_cast<uint>(steps));
-		}
-		prefs_->set("historylength", steps);
-	}
+	if (steps < 0)
+		return;
+	for (auto it = m_stacks.begin(); it != m_stacks.end(); ++it)
+		it.value().setMaxSize(static_cast<uint>(steps));
+	prefs_->set("historylength", steps);
 }
 
 int UndoManager::getHistoryLength() const
@@ -622,8 +619,10 @@ void UndoManager::languageChange()
 	UndoManager::ResTyp             = tr("Change image resolution");
 	UndoManager::UnLock             = tr("Unlock");
 	UndoManager::SizeLock           = tr("Lock size");
-	UndoManager::GradTypeMask       = tr("Set mask gradient type");
 	UndoManager::SizeUnLock         = tr("Unlock size");
+	UndoManager::AspectRatioLock    = tr("Lock aspect ratio");
+	UndoManager::AspectRatioUnLock  = tr("Unlock aspect ratio");
+	UndoManager::GradTypeMask       = tr("Set mask gradient type");
 	UndoManager::EnablePrint        = tr("Enable Item Printing");
 	UndoManager::DisablePrint       = tr("Disable Item Printing");
 	UndoManager::Ungroup            = tr("Ungroup");
@@ -847,6 +846,12 @@ void UndoManager::languageChange()
 	UndoManager::SoftShadowYOffset  = tr("Drop Shadow Y Offset");
 	UndoManager::SoftShadowOpacity  = tr("Drop Shadow Opacity");
 	UndoManager::SoftShadowBlendMode= tr("Drop Shadow Blend Mode");
+	UndoManager::SpellCheck         = tr("Apply spelling corrections");
+	UndoManager::TextLowerCase      = tr("Convert to lower case");
+	UndoManager::TextUpperCase      = tr("Convert to upper case");
+	UndoManager::TextSentenceCase   = tr("Convert to sentence case");
+	UndoManager::TextCapitalize     = tr("Capitalize");
+	UndoManager::TextToggleCase     = tr("Toggle case");
 }
 
 void UndoManager::initIcons()
@@ -975,14 +980,16 @@ QString UndoManager::SetLineColor       = "";
 QString UndoManager::SetLineShade       = "";
 QString UndoManager::FlipH              = "";
 QString UndoManager::FlipV              = "";
-QString UndoManager::Lock               = "";
 QString UndoManager::LevelUp            = "";
 QString UndoManager::LevelTop           = "";
 QString UndoManager::LevelBottom        = "";
 QString UndoManager::LevelDown          = "";
+QString UndoManager::Lock               = "";
 QString UndoManager::UnLock             = "";
 QString UndoManager::SizeLock           = "";
 QString UndoManager::SizeUnLock         = "";
+QString UndoManager::AspectRatioLock    = "";
+QString UndoManager::AspectRatioUnLock  = "";
 QString UndoManager::EnablePrint        = "";
 QString UndoManager::DisablePrint       = "";
 QString UndoManager::Ungroup            = "";
@@ -1185,6 +1192,12 @@ QString UndoManager::SoftShadowOpacity  = "";
 QString UndoManager::SoftShadowBlendMode= "";
 QString UndoManager::SoftShadowErase    = "";
 QString UndoManager::SoftShadowObjectTrans = "";
+QString UndoManager::SpellCheck         = "";
+QString UndoManager::TextLowerCase      = "";
+QString UndoManager::TextUpperCase      = "";
+QString UndoManager::TextSentenceCase   = "";
+QString UndoManager::TextCapitalize     = "";
+QString UndoManager::TextToggleCase     = "";
 
 /*** Icons for UndoObjects *******************************************/
 QPixmap *UndoManager::IImageFrame      = nullptr;

@@ -64,7 +64,7 @@ void Prefs_PreflightVerifier::restoreDefaults(struct ApplicationPrefs *prefsData
 	QString prefProfile(prefsData->verifierPrefs.curCheckProfile);
 	setCurrentComboItem(currentProfileComboBox, prefProfile);
 
-	CheckerPrefs& checkerProfile = checkerProfiles[prefProfile];
+	auto checkerProfile = checkerProfiles.value(prefProfile);
 	ignoreAllErrorsCheckBox->setChecked(checkerProfile.ignoreErrors);
 	autoCheckBeforePrintExportCheckBox->setChecked(checkerProfile.autoCheck);
 	checkMissingGlyphsCheckBox->setChecked(checkerProfile.checkGlyphs);
@@ -105,7 +105,7 @@ void Prefs_PreflightVerifier::putProfile()
 	if (!checkerProfiles.contains(currentProfile))
 		return;
 
-	CheckerPrefs& checkerProfile = checkerProfiles[currentProfile];
+	auto checkerProfile = checkerProfiles.value(currentProfile);
 	checkerProfile.ignoreErrors = ignoreAllErrorsCheckBox->isChecked();
 	checkerProfile.autoCheck = autoCheckBeforePrintExportCheckBox->isChecked();
 	checkerProfile.checkGlyphs = checkMissingGlyphsCheckBox->isChecked();
@@ -163,7 +163,7 @@ void Prefs_PreflightVerifier::updateProfile(const QString& name)
 	disconnect(checkAppliedMasterPageLocationCheckBox, SIGNAL(clicked()), this, SLOT(putProfile()));
 	disconnect(checkEmptyTextFramesCheckBox, SIGNAL(clicked()), this, SLOT(putProfile()));
 
-	CheckerPrefs& checkerProfile = checkerProfiles[name];
+	auto checkerProfile = checkerProfiles.value(name);
 	ignoreAllErrorsCheckBox->setChecked(checkerProfile.ignoreErrors);
 	autoCheckBeforePrintExportCheckBox->setChecked(checkerProfile.autoCheck);
 	checkMissingGlyphsCheckBox->setChecked(checkerProfile.checkGlyphs);
@@ -252,11 +252,9 @@ void Prefs_PreflightVerifier::delProf()
 	disconnect(currentProfileComboBox, SIGNAL(currentTextChanged(QString)), this, SLOT(setProfile(QString)));
 	disconnect(currentProfileComboBox, SIGNAL(editTextChanged(QString)), this, SLOT(setProfile(QString)));
 	checkerProfiles.remove(currentProfile);
-	updateProfile(checkerProfiles.begin().key());
+	updateProfile(checkerProfiles.cbegin().key());
 	currentProfileComboBox->clear();
-	CheckerPrefsList::Iterator it;
-	CheckerPrefsList::Iterator itend = checkerProfiles.end();
-	for (it = checkerProfiles.begin(); it != itend; ++it)
+	for (auto it = checkerProfiles.cbegin(); it != checkerProfiles.cend(); ++it)
 		currentProfileComboBox->addItem(it.key());
 	setCurrentComboItem(currentProfileComboBox, currentProfile);
 	connect(currentProfileComboBox, SIGNAL(currentTextChanged(QString)), this, SLOT(setProfile(QString)));

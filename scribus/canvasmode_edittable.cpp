@@ -7,7 +7,6 @@ a copyright and/or license notice that predates the release of Scribus 1.3.2
 for which a new license (GPL+exception) is in place.
 */
 
-
 #include <QCursor>
 #include <QDebug>
 #include <QPainter>
@@ -215,18 +214,14 @@ void CanvasMode_EditTable::mousePressEvent(QMouseEvent* event)
 		switch (handle.type())
 		{
 			case TableHandle::RowSelect:
-				// Not implemented.
 				m_table->clearSelection();
-				cell = m_table->cellAt(canvasPoint);
-				if (!cell.isValid())
-					break;
 				// Deselect text in active frame.
 				activeFrame = m_table->activeCell().textFrame();
 				activeFrame->itemText.deselectAll();
 				activeFrame->HasSel = false;
-				// Select row and pre-position text cursor
-				m_table->moveTo(cell);
-				m_table->selectRow(cell.row());
+				// Select the row indicated by the handle.
+				m_table->moveTo(m_table->cellAt(handle.index(), 0));
+				m_table->selectRow(handle.index());
 				m_view->slotSetCurs(globalPos.x(), globalPos.y());
 				m_lastCursorPos = -1;
 				updateCanvas(true);
@@ -237,18 +232,12 @@ void CanvasMode_EditTable::mousePressEvent(QMouseEvent* event)
 				m_view->startGesture(m_rowResizeGesture);
 				break;
 			case TableHandle::ColumnSelect:
-				// Not implemented.
 				m_table->clearSelection();
-				cell = m_table->cellAt(canvasPoint);
-				if (!cell.isValid())
-					break;
-				// Deselect text in active frame.
 				activeFrame = m_table->activeCell().textFrame();
 				activeFrame->itemText.deselectAll();
 				activeFrame->HasSel = false;
-				// Select column and pre-position text cursor
-				m_table->moveTo(cell);
-				m_table->selectColumn(cell.column());
+				m_table->moveTo(m_table->cellAt(0, handle.index()));
+				m_table->selectColumn(handle.index());
 				m_view->slotSetCurs(globalPos.x(), globalPos.y());
 				m_lastCursorPos = -1;
 				updateCanvas(true);

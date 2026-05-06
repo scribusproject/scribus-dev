@@ -21,6 +21,7 @@ for which a new license (GPL+exception) is in place.
 #include <libcdr/libcdr.h>
 
 #include "commonstrings.h"
+#include "documentlogmanager.h"
 #include "loadsaveplugin.h"
 #include "ui/multiprogressdialog.h"
 #include "prefsmanager.h"
@@ -70,12 +71,9 @@ QImage CdrPlug::readThumbnail(const QString& fName)
 		m_Doc->DoDrawing = true;
 		m_Doc->m_Selection->delaySignalsOn();
 		QImage tmpImage;
-		if (Elements.count() > 0)
+		if (!Elements.isEmpty())
 		{
-			for (int dre=0; dre<Elements.count(); ++dre)
-			{
-				tmpSel->addItem(Elements.at(dre), true);
-			}
+			tmpSel->addItems(Elements);
 			tmpSel->setGroupRect();
 			double xs = tmpSel->width();
 			double ys = tmpSel->height();
@@ -87,22 +85,23 @@ QImage CdrPlug::readThumbnail(const QString& fName)
 		m_Doc->setLoading(false);
 		m_Doc->m_Selection->delaySignalsOff();
 		delete m_Doc;
+		m_Doc = nullptr;
 		return tmpImage;
 	}
 	QDir::setCurrent(CurDirP);
 	m_Doc->DoDrawing = true;
 	m_Doc->scMW()->setScriptRunning(false);
 	delete m_Doc;
+	m_Doc = nullptr;
 	return QImage();
 }
 
-bool CdrPlug::import(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
+bool CdrPlug::importFile(const QString& fNameIn, const TransactionSettings& trSettings, int flags, bool showProgress)
 {
 	bool success = false;
 	interactive = (flags & LoadSavePlugin::lfInteractive);
 	importerFlags = flags;
 	cancel = false;
-	double b, h;
 	bool ret = false;
 	QFileInfo fi(fNameIn);
 	if (!ScCore->usingGUI())
@@ -130,8 +129,8 @@ bool CdrPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	else
 		progressDialog = nullptr;
 /* Set default Page to size defined in Preferences */
-	b = 0.0;
-	h = 0.0;
+	double b = 0.0;
+	double h = 0.0;
 	if (progressDialog)
 	{
 		progressDialog->setOverallProgress(1);
@@ -145,7 +144,7 @@ bool CdrPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 	docHeight = h;
 	baseX = 0;
 	baseY = 0;
-	if (!interactive || (flags & LoadSavePlugin::lfInsertPage))
+	if (m_Doc && (!interactive || (flags & LoadSavePlugin::lfInsertPage)))
 	{
 		m_Doc->setPage(docWidth, docHeight, 0, 0, 0, 0, 0, 0, false, false);
 		m_Doc->addPage(0);
@@ -197,7 +196,7 @@ bool CdrPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 		m_Doc->scMW()->setScriptRunning(false);
 		m_Doc->setLoading(false);
 		QGuiApplication::changeOverrideCursor(QCursor(Qt::ArrowCursor));
-		if ((Elements.count() > 0) && (!ret) && (interactive))
+		if (!Elements.isEmpty() && !ret && interactive)
 		{
 			if (flags & LoadSavePlugin::lfScripted)
 			{
@@ -208,10 +207,7 @@ bool CdrPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 				if (!(flags & LoadSavePlugin::lfLoadAsPattern))
 				{
 					m_Doc->m_Selection->delaySignalsOn();
-					for (int dre=0; dre<Elements.count(); ++dre)
-					{
-						m_Doc->m_Selection->addItem(Elements.at(dre), true);
-					}
+					m_Doc->m_Selection->addItems(Elements);
 					m_Doc->m_Selection->delaySignalsOff();
 					m_Doc->m_Selection->setGroupRect();
 					if (m_Doc->view() != nullptr)
@@ -224,32 +220,25 @@ bool CdrPlug::import(const QString& fNameIn, const TransactionSettings& trSettin
 				m_Doc->DraggedElem = nullptr;
 				m_Doc->DragElements.clear();
 				m_Doc->m_Selection->delaySignalsOn();
-				for (int dre=0; dre<Elements.count(); ++dre)
-				{
-					tmpSel->addItem(Elements.at(dre), true);
-				}
+				tmpSel->addItems(Elements);
 				tmpSel->setGroupRect();
 				ScElemMimeData* md = ScriXmlDoc::writeToMimeData(m_Doc, tmpSel);
 				m_Doc->itemSelection_DeleteItem(tmpSel);
 				m_Doc->view()->updatesOn(true);
-				if (importedPatterns.count() != 0)
+				if (!importedPatterns.isEmpty())
 				{
-					for (int cd = 0; cd < importedPatterns.count(); cd++)
-					{
-						m_Doc->docPatterns.remove(importedPatterns[cd]);
-					}
+					for (const auto& importedPattern : std::as_const(importedPatterns))
+						m_Doc->docPatterns.remove(importedPattern);
 				}
-				if (importedColors.count() != 0)
+				if (!importedColors.isEmpty())
 				{
-					for (int cd = 0; cd < importedColors.count(); cd++)
-					{
-						m_Doc->PageColors.remove(importedColors[cd]);
-					}
+					for (const auto& importedColor : std::as_const(importedColors))
+						m_Doc->PageColors.remove(importedColor);
 				}
 				m_Doc->m_Selection->delaySignalsOff();
 				// We must copy the TransationSettings object as it is owned
 				// by handleObjectImport method afterwards
-				TransactionSettings* transacSettings = new TransactionSettings(trSettings);
+				auto* transacSettings = new TransactionSettings(trSettings);
 				m_Doc->view()->handleObjectImport(md, transacSettings);
 				m_Doc->DragP = false;
 				m_Doc->DraggedElem = nullptr;
@@ -314,6 +303,7 @@ bool CdrPlug::convert(const QString& fn)
 		if (!libcdr::CDRDocument::isSupported(&input))
 		{
 			qDebug() << "ERROR: Unsupported file format!";
+			DocumentLogManager::instance().addLog(m_Doc->uuidString(), DocumentLogLevel::Error, "CoralDraw Importer", DocumentLogManager::msgUnsupportedFileFormat(fn));
 			fail = true;
 		}
 		if (!fail)
@@ -325,6 +315,7 @@ bool CdrPlug::convert(const QString& fn)
 		if (fail)
 		{
 			qDebug() << "ERROR: Parsing failed!";
+			DocumentLogManager::instance().addLog(m_Doc->uuidString(), DocumentLogLevel::Error, "CoralDraw Importer", DocumentLogManager::msgFileImportFailed(fn));
 			if (progressDialog)
 				progressDialog->close();
 		/*	if (importerFlags & LoadSavePlugin::lfCreateDoc)
@@ -342,12 +333,15 @@ bool CdrPlug::convert(const QString& fn)
 		if (!libcdr::CMXDocument::isSupported(&input))
 		{
 			qDebug() << "ERROR: Unsupported file format!";
+			DocumentLogManager::instance().addLog(m_Doc->uuidString(), DocumentLogLevel::Error, "CoralDraw Importer", DocumentLogManager::msgUnsupportedFileFormat(fn));
+
 			return false;
 		}
 		RawPainter painter(m_Doc, baseX, baseY, docWidth, docHeight, importerFlags, &Elements, &importedColors, &importedPatterns, tmpSel, "cmx");
 		if (!libcdr::CMXDocument::parse(&input, &painter))
 		{
 			qDebug() << "ERROR: Parsing failed!";
+			DocumentLogManager::instance().addLog(m_Doc->uuidString(), DocumentLogLevel::Error, "CoralDraw Importer", DocumentLogManager::msgFileImportFailed(fn));
 			if (progressDialog)
 				progressDialog->close();
 			if (importerFlags & LoadSavePlugin::lfCreateDoc)
@@ -362,22 +356,12 @@ bool CdrPlug::convert(const QString& fn)
 	}
 	else
 		return false;
-	if (Elements.count() == 0)
+	if (Elements.isEmpty())
 	{
-		if (importedColors.count() != 0)
-		{
-			for (int cd = 0; cd < importedColors.count(); cd++)
-			{
-				m_Doc->PageColors.remove(importedColors[cd]);
-			}
-		}
-		if (importedPatterns.count() != 0)
-		{
-			for (int cd = 0; cd < importedPatterns.count(); cd++)
-			{
-				m_Doc->docPatterns.remove(importedPatterns[cd]);
-			}
-		}
+		for (const auto& importedColor : std::as_const(importedColors))
+			m_Doc->PageColors.remove(importedColor);
+		for (const auto& importedPattern : std::as_const(importedPatterns))
+			m_Doc->docPatterns.remove(importedPattern);
 	}
 	if (progressDialog)
 		progressDialog->close();

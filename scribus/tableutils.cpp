@@ -188,51 +188,55 @@ void resolveBordersVertical(const TableCell& topLeftCell, const TableCell& topRi
 
 TableBorder collapseBorders(const TableBorder& firstBorder, const TableBorder& secondBorder)
 {
-	TableBorder collapsedBorder;
+	// A border is "visible" if it has at least one line that will actually paint.
+	// Borders that are null, zero-width, or colored "None" are treated as absent
+	// so they don't override visible borders during collapse.
+	const bool firstVisible = firstBorder.isVisible();
+	const bool secondVisible = secondBorder.isVisible();
 
-	if (firstBorder.isNull() && secondBorder.isNull())
+	if (!firstVisible && !secondVisible)
 	{
-		// Both borders are null, so return a null border.
-		return collapsedBorder;
+		// Both borders are invisible, so return a null border.
+		return TableBorder();
 	}
-	if (firstBorder.isNull())
+	if (!firstVisible)
 	{
-		// First border is null, so return second border.
-		collapsedBorder = secondBorder;
+		// First border is invisible, so return second border.
+		return secondBorder;
 	}
-	else if (secondBorder.isNull())
+	if (!secondVisible)
 	{
-		// Second border is null, so return first border.
-		collapsedBorder = firstBorder;
-	}
-	else
-	{
-		if (firstBorder.width() > secondBorder.width())
-		{
-			// First border is wider than second border, so return first border.
-			collapsedBorder = firstBorder; // (4)
-		}
-		else if (firstBorder.width() < secondBorder.width())
-		{
-			// Second border is wider than first border, so return second border.
-			collapsedBorder = secondBorder; // (5)
-		}
-		else
-		{
-			if (firstBorder.borderLines().size() > secondBorder.borderLines().size())
-			{
-				// First border has more border lines than second border, so return first border.
-				collapsedBorder = firstBorder;
-			}
-			else
-			{
-				// Second border has more or equal border lines than first border, so return second border.
-				collapsedBorder = secondBorder;
-			}
-		}
+		// Second border is invisible, so return first border.
+		return firstBorder;
 	}
 
-	return collapsedBorder;
+	// Both borders are visible.
+	if (firstBorder.width() > secondBorder.width())
+	{
+		// First border is wider than second border, so return first border.
+		return firstBorder;
+	}
+	if (firstBorder.width() < secondBorder.width())
+	{
+		// Second border is wider than first border, so return second border.
+		return secondBorder;
+	}
+
+	// Borders have equal width.
+	if (firstBorder.borderLines().size() > secondBorder.borderLines().size())
+	{
+		// First border has more border lines than second border, so return first border.
+		return firstBorder;
+	}
+	if (firstBorder.borderLines().size() < secondBorder.borderLines().size())
+	{
+		// Second border has more border lines than first border, so return second border.
+		return secondBorder;
+	}
+
+	// Borders are indistinguishable; return first border for deterministic results
+	// regardless of argument order.
+	return firstBorder;
 }
 
 void joinVertical(const TableBorder& border, const TableBorder& topLeft, const TableBorder& top,

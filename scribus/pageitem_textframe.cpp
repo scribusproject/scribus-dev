@@ -46,6 +46,7 @@ for which a new license (GPL+exception) is in place.
 #include "pageitem_group.h"
 #include "pageitem_noteframe.h"
 #include "prefsmanager.h"
+#include "prefsstructs.h"
 #include "scconfig.h"
 #include "scpage.h"
 #include "scpainter.h"
@@ -61,6 +62,7 @@ for which a new license (GPL+exception) is in place.
 #include "text/textshaper.h"
 #include "text/shapedtext.h"
 #include "text/shapedtextfeed.h"
+#include "textframespellchecker.h"
 #include "textnote.h"
 #include "ui/guidemanager.h"
 #include "ui/marksmanager.h"
@@ -86,10 +88,16 @@ PageItem_TextFrame::PageItem_TextFrame(const PageItem & p) : PageItem(p)
 	m_notesFramesMap.clear();
 }
 
+PageItem_TextFrame::~PageItem_TextFrame()
+{
+	TextFrameSpellChecker::instance()->frameDeleted(this);
+}
+
 void PageItem_TextFrame::init()
 {
 	m_origAnnotPos = QRectF(xPos(), yPos(), width(), height());
-	connect(&itemText,SIGNAL(changed(int,int)), this, SLOT(slotInvalidateLayout(int,int)));
+	connect(&itemText, SIGNAL(changed(int,int)), this, SLOT(slotInvalidateLayout(int,int)));
+	connect(&itemText, SIGNAL(changed(int,int)), this, SLOT(slotSpellCheckTextChanged(int,int)));
 }
 
 QRegion PageItem_TextFrame::calcAvailableRegion()
@@ -1035,11 +1043,11 @@ static double adjustToBaselineGrid (const LineControl &control, PageItem *item, 
 	double by = item->yPos();
 	if (OwnPage != -1)
 		by = by - item->doc()->Pages->at(OwnPage)->yOffset();
-	int ol1 = qRound((by + control.yPos - item->doc()->guidesPrefs().offsetBaselineGrid) * 10000.0);
-	int ol2 = static_cast<int>(ol1 / item->doc()->guidesPrefs().valueBaselineGrid);
+	qint64 ol1 = qRound64((by + control.yPos - item->doc()->guidesPrefs().offsetBaselineGrid) * 10000.0);
+	qint64 ol2 = static_cast<qint64>(ol1 / item->doc()->guidesPrefs().valueBaselineGrid);
 //						qDebug() << QString("baseline adjust: y=%1->%2").arg(current.yPos).arg(ceil(  ol2 / 10000.0 ) * item->doc()->typographicSettings.valueBaselineGrid + item->doc()->typographicSettings.offsetBaselineGrid - by);
 
-	return ceil(  ol2 / 10000.0 ) * item->doc()->guidesPrefs().valueBaselineGrid + item->doc()->guidesPrefs().offsetBaselineGrid - by;
+	return ceil(ol2 / 10000.0) * item->doc()->guidesPrefs().valueBaselineGrid + item->doc()->guidesPrefs().offsetBaselineGrid - by;
 }
 
 static double nextAutoTab (const LineControl &current, PageItem *item)
@@ -1716,9 +1724,9 @@ void PageItem_TextFrame::layout()
 							double by = m_yPos;
 							if (OwnPage != -1)
 								by = m_yPos - m_Doc->Pages->at(OwnPage)->yOffset();
-							int ol1 = qRound((by + current.yPos - m_Doc->guidesPrefs().offsetBaselineGrid) * 10000.0);
-							int ol2 = static_cast<int>(ol1 / m_Doc->guidesPrefs().valueBaselineGrid);
-							current.yPos = ceil(  ol2 / 10000.0 ) * m_Doc->guidesPrefs().valueBaselineGrid + m_Doc->guidesPrefs().offsetBaselineGrid - by;
+							qint64 ol1 = qRound64((by + current.yPos - m_Doc->guidesPrefs().offsetBaselineGrid) * 10000.0);
+							qint64 ol2 = static_cast<qint64>(ol1 / m_Doc->guidesPrefs().valueBaselineGrid);
+							current.yPos = ceil(ol2 / 10000.0) * m_Doc->guidesPrefs().valueBaselineGrid + m_Doc->guidesPrefs().offsetBaselineGrid - by;
 						}
 						else if (style.lineSpacingMode() != ParagraphStyle::BaselineGridLineSpacing)
 						{
@@ -1743,9 +1751,9 @@ void PageItem_TextFrame::layout()
 							double by = m_yPos;
 							if (OwnPage != -1)
 								by = m_yPos - m_Doc->Pages->at(OwnPage)->yOffset();
-							int ol1 = qRound((by + current.yPos - m_Doc->guidesPrefs().offsetBaselineGrid) * 10000.0);
-							int ol2 = static_cast<int>(ol1 / m_Doc->guidesPrefs().valueBaselineGrid);
-							current.yPos = ceil(  ol2 / 10000.0 ) * m_Doc->guidesPrefs().valueBaselineGrid + m_Doc->guidesPrefs().offsetBaselineGrid - by;
+							qint64 ol1 = qRound64((by + current.yPos - m_Doc->guidesPrefs().offsetBaselineGrid) * 10000.0);
+							qint64 ol2 = static_cast<qint64>(ol1 / m_Doc->guidesPrefs().valueBaselineGrid);
+							current.yPos = ceil(ol2 / 10000.0) * m_Doc->guidesPrefs().valueBaselineGrid + m_Doc->guidesPrefs().offsetBaselineGrid - by;
 						}
 						else
 							current.yPos += style.lineSpacing();
@@ -1889,9 +1897,9 @@ void PageItem_TextFrame::layout()
 							double by = m_yPos;
 							if (OwnPage != -1)
 								by = m_yPos - m_Doc->Pages->at(OwnPage)->yOffset();
-							int ol1 = qRound((by + current.yPos - m_Doc->guidesPrefs().offsetBaselineGrid) * 10000.0);
-							int ol2 = static_cast<int>(ol1 / m_Doc->guidesPrefs().valueBaselineGrid);
-							current.yPos = ceil(  ol2 / 10000.0 ) * m_Doc->guidesPrefs().valueBaselineGrid + m_Doc->guidesPrefs().offsetBaselineGrid - by;
+							qint64 ol1 = qRound64((by + current.yPos - m_Doc->guidesPrefs().offsetBaselineGrid) * 10000.0);
+							qint64 ol2 = static_cast<qint64>(ol1 / m_Doc->guidesPrefs().valueBaselineGrid);
+							current.yPos = ceil(ol2 / 10000.0) * m_Doc->guidesPrefs().valueBaselineGrid + m_Doc->guidesPrefs().offsetBaselineGrid - by;
 						}
 						else if (style.lineSpacingMode() == ParagraphStyle::FixedLineSpacing)
 							current.yPos += (current.startOfCol ? 1 : style.lineSpacing());
@@ -3052,6 +3060,11 @@ void PageItem_TextFrame::slotInvalidateLayout(int firstItem, int /*endItem*/)
 	}
 }
 
+void PageItem_TextFrame::slotSpellCheckTextChanged(int /*firstItem*/, int /*endItem*/)
+{
+	TextFrameSpellChecker::instance()->frameTextChanged(this);
+}
+
 bool PageItem_TextFrame::isValidChainFromBegin()
 {
 	if (invalid)
@@ -3464,6 +3477,17 @@ void PageItem_TextFrame::DrawObj_Item(ScPainter *p, const QRectF& cullingArea)
 		if (!m_Doc->whiteSpaceModeEnabled)
 			textLayout.renderBackground(&painter);
 		textLayout.render(&painter, this);
+
+		// Draw spell check underlines (only in edit mode)
+		if (TextFrameSpellChecker::instance()->isEnabled() &&
+			PrefsManager::instance().appPrefs.spellCheckPrefs.showMisspeltIndicator &&
+			 m_Doc->appMode == modeEdit && this == m_Doc->m_Selection->itemAt(0))
+		{
+			const QVector<SpellError> errors = TextFrameSpellChecker::instance()->getErrors(this);
+			if (!errors.isEmpty())
+				drawSpellCheckSquiggles(p, errors);
+		}
+
 		p->setFillMode(fm);
 		p->setStrokeMode(sm);
 	}
@@ -3660,6 +3684,108 @@ void PageItem_TextFrame::DrawObj_Decoration(ScPainter *p)
 	p->restore();
 }
 
+void PageItem_TextFrame::drawSpellCheckSquiggles(ScPainter* p, const QVector<SpellError>& errors)
+{
+	const int textLen = itemText.length();
+	const Box* outerBox = textLayout.box();
+	p->save();
+
+	for (const SpellError& error : errors)
+	{
+		// Skip errors whose positions are no longer valid
+		if (error.position < 0 || error.position >= textLen)
+			continue;
+		if (error.position + error.length > textLen)
+			continue;
+
+		// Get font size at this error position (CharStyle stores size in tenths of a point)
+		const double fontSize = itemText.charStyle(error.position).fontSize() / 10.0;
+
+		// Scale pen width, amplitude, and wavelength to font size
+		// 12pt is the reference — adjust ratios to taste
+		const double penWidth = qMax(0.5, fontSize / 24.0);
+		p->setPen(Qt::red, penWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+
+		// Iterate over columns
+		for (const Box* column : outerBox->boxes())
+		{
+			// Iterate over lines within each column
+			for (const Box* box : column->boxes())
+			{
+				const LineBox* line = dynamic_cast<const LineBox*>(box);
+				if (!line)
+					continue;
+
+				// Check if error overlaps this line
+				if (error.position > line->lastChar() || error.position + error.length <= line->firstChar())
+					continue;
+
+				// Calculate x positions for the error span
+				int startPos = qMax(error.position, line->firstChar());
+				int endPos = qMin(error.position + error.length, line->lastChar() + 1);
+
+				QLineF startPoint = line->positionToPoint(startPos, itemText);
+				QLineF endPoint = line->positionToPoint(endPos, itemText);
+
+				// positionToPoint returns coordinates in the line's local space.
+				// Translate by column offset and outer box offset to reach frame space.
+				double offsetX = column->x() + outerBox->x();
+				double offsetY = column->y() + outerBox->y();
+
+				double startX = startPoint.x1() + offsetX;
+				double endX = endPoint.x1() + offsetX;
+				double squiggleY = startPoint.y1() + offsetY + line->ascent() + (fontSize * 0.15);
+
+				// Draw squiggle
+				drawSquiggleLine(p, startX, squiggleY, endX - startX, fontSize);
+			}
+		}
+	}
+
+	p->restore();
+}
+
+void PageItem_TextFrame::drawSquiggleLine(ScPainter* p, double x, double y, double width, double fontSize)
+{
+	if (width <= 0)
+		return;
+
+	// Scale amplitude and wavelength with font size.
+	// Reference: 12pt text -> amplitude 0.6, wavelength 3.0
+	const double scale = fontSize / 12.0;
+	const double amplitude = 0.4 * scale;
+	const double halfAmplitude = amplitude * 0.5;
+	const double wavelength = 3.0 * scale;
+
+	// Create a smooth wave using bezier curves
+	FPointArray wave;
+	wave.svgInit();
+
+	double currentX = x;
+	bool up = true;
+
+	wave.svgMoveTo(currentX, y);
+
+	while (currentX < x + width)
+	{
+		double nextX = qMin(currentX + wavelength, x + width);
+		double peakY = up ? y - amplitude : y + amplitude;
+		double curveY = peakY;
+
+		// If this is the final segment, make it gentler
+		if (nextX >= x + width)
+			curveY = up ? y - halfAmplitude : y + halfAmplitude;
+		// Final curve - use smaller amplitude
+		wave.svgCurveToCubic(currentX + wavelength / 4.0, curveY, currentX + 3 * wavelength / 4.0, curveY, nextX, y);
+
+		currentX = nextX;
+		up = !up;
+	}
+
+	p->setupPolygon(&wave, false);
+	p->setFillMode(ScPainter::None);
+	p->strokePath();
+}
 
 void PageItem_TextFrame::clearContents()
 {
@@ -4253,6 +4379,7 @@ void PageItem_TextFrame::handleModeEditKey(QKeyEvent *k, bool& keyRepeat)
 			}
 		}
 		m_Doc->scMW()->setTBvals(this);
+		// TextFrameSpellChecker::instance()->frameTextChanged(this);
 //		update();
 //		view->RefreshItem(this);
 		break;
@@ -4417,6 +4544,26 @@ void PageItem_TextFrame::handleModeEditKey(QKeyEvent *k, bool& keyRepeat)
 		}
 		break;
 	}
+	// switch (kk)
+	// {
+	// 	case Qt::Key_PageDown:
+	// 	case Qt::Key_PageUp:
+	// 	case Qt::Key_End:
+	// 	case Qt::Key_Home:
+	// 	case Qt::Key_Right:
+	// 	case Qt::Key_Left:
+	// 	case Qt::Key_Up:
+	// 	case Qt::Key_Down:
+	// 	case Qt::Key_Shift:
+	// 	case Qt::Key_Control:
+	// 	case Qt::Key_Alt:
+	// 	case Qt::Key_Meta:
+	// 	case Qt::Key_CapsLock:
+	// 	case Qt::Key_Escape:
+	// 		break;
+	// 	default:
+	// 		TextFrameSpellChecker::instance()->frameTextChanged(this);
+	// }
 // 	update();
 //	view->slotDoCurs(true);
 	if ((kk == Qt::Key_Left) || (kk == Qt::Key_Right) || (kk == Qt::Key_Up) || (kk == Qt::Key_Down))
@@ -4964,6 +5111,91 @@ void PageItem_TextFrame::toggleEditModeActions()
 		}
 	}
 	m_Doc->scMW()->scrActions["editMark"]->setEnabled(enableEditMark);
+}
+
+int PageItem_TextFrame::textPositionFromPoint(const QPointF& canvasPoint)
+{
+	if (itemText.isEmpty())
+		return 0;
+	QTransform mm = getTransform();
+	QPointF textFramePoint = mm.map(QPointF(0, 0));
+	double px = canvasPoint.x() - textFramePoint.x();
+	double py = canvasPoint.y() - textFramePoint.y();
+	FPoint point(px, py);
+	if (mm.isInvertible())
+	{
+		qreal tx = 0, ty = 0;
+		mm.inverted().map(canvasPoint.x(), canvasPoint.y(), &tx, &ty);
+		point.setXY(tx, ty);
+	}
+	if (imageFlippedH())
+		point.setX(width() - point.x());
+	if (imageFlippedV())
+		point.setY(height() - point.y());
+
+	return textLayout.pointToPosition(point.toQPointF());
+}
+
+void PageItem_TextFrame::replaceSpellingErrorText(const SpellError& error, const QString& suggestion)
+{
+	// Capture the character style from the first character of the misspelled word
+	CharStyle originalStyle = itemText.charStyle(error.position);
+
+	UndoTransaction transaction;
+	if (UndoManager::undoEnabled())
+	{
+		UndoObject* undoTarget = isNoteFrame() ? dynamic_cast<UndoObject*>(doc()) : dynamic_cast<UndoObject*>(this);
+		transaction = UndoManager::instance()->beginTransaction(getUName(), getUPixmap());
+		if (error.length > 0)
+		{
+			auto is = new ScItemState<CharStyle>(Um::DeleteText, "", Um::IDelete);
+			is->set("DELETE_FRAMETEXT");
+			is->set("ETEA",  QString("delete_frametext"));
+			is->set("TEXT_STR", error.word);
+			is->set("START", error.position);
+			is->setItem(itemText.charStyle(error.position));
+			if (isNoteFrame())
+				is->set("noteframeName", getUName());
+			UndoManager::instance()->action(undoTarget, is);
+		}
+		if (suggestion.length() > 0)
+		{
+			auto ss = new SimpleState(Um::InsertText, "", Um::ICreate);
+			ss->set("INSERT_FRAMETEXT");
+			ss->set("ETEA", QString("insert_frametext"));
+			ss->set("TEXT_STR", suggestion);
+			ss->set("START", error.position);
+			UndoObject * undoTarget = this;
+			if (isNoteFrame())
+				ss->set("noteframeName", getUName());
+			UndoManager::instance()->action(undoTarget, ss);
+
+			ScOldNewState<CharStyle> *is = new ScOldNewState<CharStyle>(Um::SpellCheck);
+			is->set("APPLY_CHARSTYLE");
+			is->set("START", error.position);
+			is->set("LENGTH", suggestion.length());
+			is->set("ETEA", "NAMED_STYLE");
+			is->setStates(itemText.charStyle(error.position), originalStyle);
+			UndoManager::instance()->action(undoTarget, is);
+		}
+	}
+
+	// Replace the text
+	itemText.select(error.position, error.length);
+	itemText.replaceSelection(suggestion);
+
+	// Apply the original style to all the new characters
+	itemText.select(error.position, suggestion.length());
+	itemText.applyCharStyle(error.position, suggestion.length(), originalStyle);
+
+	if (transaction)
+		transaction.commit();
+
+	// Update layout and view
+	invalidateLayout(false);
+
+	// Trigger immediate recheck
+	TextFrameSpellChecker::instance()->checkFrameNow(this);
 }
 
 void PageItem_TextFrame::applicableActions(QStringList & actionList)

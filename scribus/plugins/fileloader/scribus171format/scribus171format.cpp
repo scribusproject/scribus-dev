@@ -2533,6 +2533,7 @@ void Scribus171Format::readDocAttributes(ScribusDoc* doc, const ScXmlStreamAttri
 		m_Doc->setPageOrientation(attrs.valueAsInt("ORIENTATION", 0));
 		m_Doc->FirstPnum = attrs.valueAsInt("FIRSTNUM", 1);
 		m_Doc->setPagePositioning(attrs.valueAsInt("BOOK", 0));
+		m_Doc->setBindingDirection(attrs.valueAsInt("BINDINGDIRECTION", 0));
 
 		m_Doc->setUsesAutomaticTextFrames( attrs.valueAsInt("AUTOTEXT") );
 		m_Doc->PageSp = attrs.valueAsInt("AUTOSPALTEN");
@@ -2599,6 +2600,7 @@ void Scribus171Format::readDocAttributes(ScribusDoc* doc, const ScXmlStreamAttri
 		m_Doc->setPageOrientation(attrs.valueAsInt("PageOrientation", 0));
 		m_Doc->FirstPnum = attrs.valueAsInt("FirstPageNumber", 1);
 		m_Doc->setPagePositioning(attrs.valueAsInt("PagePositioning", 0));
+		m_Doc->setBindingDirection(attrs.valueAsInt("BindingDirection", 0));
 
 		m_Doc->setUsesAutomaticTextFrames( attrs.valueAsInt("AutomaticTextFrames") );
 		m_Doc->PageSp = attrs.valueAsInt("AutomaticTextFrameColumnCount");
@@ -3500,8 +3502,11 @@ void Scribus171Format::readCharacterStyleAttrs(ScribusDoc *doc, const ScXmlStrea
 		newStyle.setShortcut(attrs.valueAsString(SHORTCUT171));
 
 	static const QString WORDTRACK("wordTrack");
+	static const QString WORDTRACK171("WordTrack");
 	if (attrs.hasAttribute(WORDTRACK))
 		newStyle.setWordTracking(attrs.valueAsDouble(WORDTRACK));
+	else if (attrs.hasAttribute(WORDTRACK171))
+		newStyle.setWordTracking(attrs.valueAsDouble(WORDTRACK171));
 }
 
 void Scribus171Format::readNamedCharacterStyleAttrs(ScribusDoc *doc, const ScXmlStreamAttributes& attrs, CharStyle & newStyle) const
@@ -4389,6 +4394,7 @@ bool Scribus171Format::readTableOfContents(ScribusDoc* doc, ScXmlStreamReader& r
 		if (reader.isEndElement() && tagName == QLatin1String("TableOfContents"))
 		{
 			doc->appendToTocSetups(tocsetup);
+			tocsetup.entryData.clear();
 			tocsetup.styleListToFind.clear();
 			tocsetup.styleListForTOC.clear();
 		}
@@ -4413,30 +4419,7 @@ bool Scribus171Format::readNotesStyles(ScribusDoc* /*doc*/, ScXmlStreamReader& r
 			NS.setStart(attrs.valueAsInt("Start"));
 			NS.setEndNotes(attrs.valueAsBool("Endnotes"));
 			QString type = attrs.valueAsString("Type");
-			if (type == "Type_1_2_3")
-				NS.setType(Type_1_2_3);
-			else if (type == "Type_1_2_3_ar")
-				NS.setType(Type_1_2_3_ar);
-			else if (type == "Type_i_ii_iii")
-				NS.setType(Type_i_ii_iii);
-			else if (type == "Type_I_II_III")
-				NS.setType(Type_I_II_III);
-			else if (type == "Type_a_b_c")
-				NS.setType(Type_a_b_c);
-			else if (type == "Type_A_B_C")
-				NS.setType(Type_A_B_C);
-			else if (type == "Type_Alphabet_ar")
-				NS.setType(Type_Alphabet_ar);
-			else if (type == "Type_Abjad_ar")
-				NS.setType(Type_Abjad_ar);
-			else if (type == "Type_Hebrew")
-				NS.setType(Type_Hebrew);
-			else if (type == "Type_asterix")
-				NS.setType(Type_asterix);
-			else if (type == "Type_CJK")
-				NS.setType(Type_CJK);
-			else //if (type == "Type_None")
-				NS.setType(Type_None);
+			NS.setType(fromStringToNum(attrs.valueAsString("Type")));
 			// Fix deprecated numeration ranges
 			NumerationRange numRange = (NumerationRange) attrs.valueAsInt("Range");
 			if (numRange != NSRdocument && numRange != NSRstory)
@@ -4646,28 +4629,7 @@ bool Scribus171Format::readSections(ScribusDoc* doc, ScXmlStreamReader& reader) 
 			newSection.fromindex = attrs.valueAsInt("From");
 			newSection.toindex = attrs.valueAsInt("To");
 			QString type = attrs.valueAsString("Type");
-			if (type == "Type_1_2_3")
-				newSection.type = Type_1_2_3;
-			if (type == "Type_1_2_3_ar")
-				newSection.type = Type_1_2_3_ar;
-			if (type == "Type_i_ii_iii")
-				newSection.type = Type_i_ii_iii;
-			if (type == "Type_I_II_III")
-				newSection.type = Type_I_II_III;
-			if (type == "Type_a_b_c")
-				newSection.type = Type_a_b_c;
-			if (type == "Type_A_B_C")
-				newSection.type = Type_A_B_C;
-			if (type == "Type_Alphabet_ar")
-				newSection.type = Type_Alphabet_ar;
-			if (type == "Type_Abjad_ar")
-				newSection.type = Type_Abjad_ar;
-			if (type == "Type_Hebrew")
-				newSection.type = Type_Hebrew;
-			if (type == "Type_CJK")
-				newSection.type = Type_CJK;
-			if (type == "Type_None")
-				newSection.type = Type_None;
+			newSection.type = fromStringToNum(attrs.valueAsString("Type"));
 			newSection.sectionstartindex = attrs.valueAsInt("Start");
 			newSection.reversed = attrs.valueAsBool("Reversed");
 			newSection.active = attrs.valueAsBool("Active");
@@ -5276,7 +5238,7 @@ bool Scribus171Format::readObject(ScribusDoc* doc, ScXmlStreamReader& reader, co
 				}
 			}
 		}
-		if ((tName == QLatin1String("PAGEOBJECT") || tName == QLatin1String("PageObject")) || (tName == QLatin1String("ITEM") || tagName == QLatin1String("Item")))
+		if ((tName == QLatin1String("PAGEOBJECT") || tName == QLatin1String("PageObject")) || (tName == QLatin1String("ITEM") || tName == QLatin1String("Item")))
 		{
 			if (newItem->isGroup())
 			{
@@ -6935,7 +6897,7 @@ PageItem* Scribus171Format::pasteItem(ScribusDoc *doc, const ScXmlStreamAttribut
 		{
 			QStringList slRowHeights = rowHeights.split(" ");
 			int i = 0;
-			for (const QString& pos : slRowHeights)
+			for (const QString& pos : std::as_const(slRowHeights))
 			{
 				tableitem->resizeRow(i, pos.toDouble());
 				++i;
@@ -6947,7 +6909,7 @@ PageItem* Scribus171Format::pasteItem(ScribusDoc *doc, const ScXmlStreamAttribut
 		{
 			QStringList slColWidths = colWidths.split(" ");
 			int i = 0;
-			for (const QString& pos : slColWidths)
+			for (const QString& pos : std::as_const(slColWidths))
 			{
 				tableitem->resizeColumn(i, pos.toDouble());
 				++i;
@@ -7022,6 +6984,7 @@ PageItem* Scribus171Format::pasteItem(ScribusDoc *doc, const ScXmlStreamAttribut
 	{
 		currItem->setLocked (attrs.valueAsBool("LOCK", false));
 		currItem->setSizeLocked(attrs.valueAsBool("LOCKR", false));
+		currItem->setAspectRatioLocked(attrs.valueAsBool("ItemAspectRatioLocked", false));
 		currItem->fillRule = attrs.valueAsBool("fillRule", true);
 		currItem->doOverprint = attrs.valueAsBool("doOverprint", false);
 		currItem->setFillTransparency(attrs.valueAsDouble("TransValue", 0.0));
@@ -7033,6 +6996,7 @@ PageItem* Scribus171Format::pasteItem(ScribusDoc *doc, const ScXmlStreamAttribut
 	{
 		currItem->setLocked (attrs.valueAsBool("ItemLocked", false));
 		currItem->setSizeLocked(attrs.valueAsBool("ItemSizeLocked", false));
+		currItem->setAspectRatioLocked(attrs.valueAsBool("ItemAspectRatioLocked", false));
 		currItem->fillRule = attrs.valueAsBool("FillRule", true);
 		currItem->doOverprint = attrs.valueAsBool("DoOverprint", false);
 		currItem->setFillTransparency(attrs.valueAsDouble("FillTransparency", 0.0));

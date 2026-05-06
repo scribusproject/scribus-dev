@@ -1101,6 +1101,10 @@ public: // Start public functions
 	bool sizeLocked() const { return m_SizeLocked; }
 	bool sizeHLocked() const { return m_SizeHLocked || m_SizeLocked; }
 	bool sizeVLocked() const { return m_SizeVLocked || m_SizeLocked; }
+	bool aspectRatioLocked() const { return m_aspectRatioLocked; }
+	void setAspectRatioLocked(bool isAspectLocked);
+	/** @brief Toggle lock for resizing */
+	void toggleAspectRatioLock();
 	/** @brief set lock for resizing */
 	void setSizeLocked(bool isLocked);
 	void setSizeHLocked(bool isLocked) { m_SizeHLocked = isLocked; }
@@ -1551,6 +1555,7 @@ protected: // Start protected functions
 	void restoreArrow(SimpleState *state, bool isUndo, bool isStart);
 	void restoreBottomTextFrameDist(SimpleState *state, bool isUndo);
 	void restoreCharStyle(SimpleState *state, bool isUndo);
+	void restoreCaseTransform(SimpleState *state, bool isUndo);
 	void restoreClearImage(UndoState *state, bool isUndo);
 	void restoreColumns(SimpleState *state, bool isUndo);
 	void restoreColumnsGap(SimpleState *state, bool isUndo);
@@ -1836,6 +1841,12 @@ protected: // Start protected variables
 	 * @sa PageItem::sizeLocked(), PageItem::setSizeLocked(), PageItem::toggleSizeLock()
 	 */
 	bool m_SizeLocked {false};
+
+	/**
+	 * @brief Is the item's aspect ratio locked?
+	 * @sa PageItem::aspectRatioLocked(), PageItem::setAspectRatioLocked(), PageItem::toggleAspectRatioLocked()
+	 */
+	bool m_aspectRatioLocked {false};
 
 	/**
 	 * @for notes frames - locking horizontal or vertical size

@@ -1127,32 +1127,63 @@ TableHandle PageItem_Table::hitTest(const QPointF& point, double threshold) cons
 	const double x = gridPoint.x();
 	const double y = gridPoint.y();
 
-	// Test if hit is on left edge of table.
-	if (x <= threshold)
-		return TableHandle(TableHandle::RowSelect);
-
-	// Test if hit is on top edge of table.
-	if (y <= threshold)
-		return TableHandle(TableHandle::ColumnSelect);
-
-	// Test if hit is on bottom right corner of table.
+	// Test if hit is in the bottom-right table-resize corner.
+	// (Checked early because it can overlap with row/column resize on the right and bottom edges.)
 	if (x >= tableWidth - threshold && y >= tableHeight - threshold)
 		return TableHandle(TableHandle::TableResize);
 
-	// Test if hit is on right edge of table.
-	if (y >= tableHeight - threshold && y <= tableHeight + threshold)
-		return TableHandle(TableHandle::RowResize, rows() - 1);
+	// Test if hit is in the row-select strip (inside left edge of grid).
+	if (x >= 0.0 && x <= threshold)
+	{
+		int row = -1;
+		for (int r = 0; r < rows(); ++r)
+		{
+			double rowTop = rowPosition(r);
+			double rowBottom = rowTop + rowHeight(r);
+			if (y >= rowTop && y < rowBottom)
+			{
+				row = r;
+				break;
+			}
+		}
+		if (row < 0)
+			return TableHandle(TableHandle::None);
+		return TableHandle(TableHandle::RowSelect, row);
+	}
 
-	// Test if hit is on bottom edge of table.
-	if (x >= tableWidth - threshold && x <= tableWidth + threshold)
+	// Test if hit is in the column-select strip (inside top edge of grid).
+	if (y >= 0.0 && y <= threshold)
+	{
+		int col = -1;
+		for (int c = 0; c < columns(); ++c)
+		{
+			double colLeft = columnPosition(c);
+			double colRight = colLeft + columnWidth(c);
+			if (x >= colLeft && x < colRight)
+			{
+				col = c;
+				break;
+			}
+		}
+		if (col < 0)
+			return TableHandle(TableHandle::None);
+		return TableHandle(TableHandle::ColumnSelect, col);
+	}
+
+	// Test if hit is on right edge of table (resize last column).
+	if (x >= tableWidth - threshold)
 		return TableHandle(TableHandle::ColumnResize, columns() - 1);
+
+	// Test if hit is on bottom edge of table (resize last row).
+	if (y >= tableHeight - threshold)
+		return TableHandle(TableHandle::RowResize, rows() - 1);
 
 	const TableCell hitCell = cellAt(point);
 	const QRectF hitRect = hitCell.boundingRect();
 
 	// Test if hit is on cell interior.
 	if (hitRect.adjusted(threshold, threshold, -threshold, -threshold).contains(gridPoint))
-		return TableHandle(TableHandle::CellSelect); // Hit interior of cell.
+		return TableHandle(TableHandle::CellSelect);
 
 	const double toLeft = x - hitRect.left();
 	const double toRight = hitRect.right() - x;
@@ -1163,13 +1194,21 @@ TableHandle PageItem_Table::hitTest(const QPointF& point, double threshold) cons
 	// Test which side of the cell was hit.
 	if (qMin(toLeft, toRight) < qMin(toTop, toBottom))
 	{
+		// Closer to a vertical edge: column resize.
+		int colIndex = (toLeft < toRight ? hitCell.column() : hitCell.column() + hitCell.columnSpan()) - 1;
+		if (colIndex < 0 || colIndex >= columns())
+			return TableHandle(TableHandle::CellSelect);
 		handle.setType(TableHandle::ColumnResize);
-		handle.setIndex((toLeft < toRight ? hitCell.column() : hitCell.column() + hitCell.columnSpan()) - 1);
+		handle.setIndex(colIndex);
 	}
 	else
 	{
+		// Closer to a horizontal edge: row resize.
+		int rowIndex = (toTop < toBottom ? hitCell.row() : hitCell.row() + hitCell.rowSpan()) - 1;
+		if (rowIndex < 0 || rowIndex >= rows())
+			return TableHandle(TableHandle::CellSelect);
 		handle.setType(TableHandle::RowResize);
-		handle.setIndex((toTop < toBottom ? hitCell.row() : hitCell.row() + hitCell.rowSpan()) - 1);
+		handle.setIndex(rowIndex);
 	}
 	return handle;
 }
